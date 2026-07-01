@@ -5,7 +5,7 @@ import MonthSelector from '@/components/MonthSelector'
 import TransactionModal from '@/components/TransactionModal'
 import { useData } from '@/lib/store'
 import { fmt } from '@/lib/format'
-import { Transaction, MONTH_LABELS, Category } from '@/lib/types'
+import { Transaction, MONTH_LABELS, Category, MONTHS } from '@/lib/types'
 
 const catConfig = {
   receita: { label: 'Receita', color: '#00e5aa', bg: 'bg-[#00e5aa]/10', text: 'text-[#00e5aa]', border: 'border-[#00e5aa]/20' },
@@ -32,23 +32,39 @@ export default function MesPage() {
     [data, currentMonth]
   )
 
+  const totalParcelas = useMemo(
+    () => (data?.installments ?? []).filter(i => i.status === 'ATIVO').reduce((s, i) => s + i.valuePerInstallment, 0),
+    [data]
+  )
+
   const handleSave = (tx: Omit<Transaction, 'id'>) => {
     if (!data) return
-    const id = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
-    const newData = {
-      ...data,
-      transactions: [...data.transactions, { ...tx, id }],
-      monthlySummaries: data.monthlySummaries.map(s => {
-        if (s.month !== tx.month) return s
-        return {
-          ...s,
-          receita: tx.category === 'receita' ? s.receita + tx.value : s.receita,
-          fixos:   tx.category === 'fixo'    ? s.fixos   + tx.value : s.fixos,
-          extras:  tx.category === 'extra'   ? s.extras  + tx.value : s.extras,
-          saldo:   s.saldo + (tx.category === 'receita' ? tx.value : -tx.value),
-        }
-      }),
+
+    const monthsToAdd = (tx.category === 'fixo' && tx.recurring)
+      ? MONTHS.slice(MONTHS.indexOf(currentMonth))
+      : [tx.month]
+    let newData = { ...data }
+
+    for (const month of monthsToAdd) {
+      const id = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}_${month}`
+      const newTx: Transaction = { ...tx, id, month }
+      const delta = tx.category === 'receita' ? tx.value : -tx.value
+      newData = {
+        ...newData,
+        transactions: [...newData.transactions, newTx],
+        monthlySummaries: newData.monthlySummaries.map(s => {
+          if (s.month !== month) return s
+          return {
+            ...s,
+            receita: tx.category === 'receita' ? s.receita + tx.value : s.receita,
+            fixos:   tx.category === 'fixo'    ? s.fixos   + tx.value : s.fixos,
+            extras:  tx.category === 'extra'   ? s.extras  + tx.value : s.extras,
+            saldo:   s.saldo + delta,
+          }
+        }),
+      }
     }
+
     setData(newData)
   }
 
@@ -132,8 +148,8 @@ export default function MesPage() {
         <div className="grid grid-cols-3 gap-2 mb-5">
           {[
             { label: 'Receita', value: summary.receita, color: '#00e5aa' },
-            { label: 'Gastos',  value: summary.fixos + summary.extras, color: '#ff3366' },
-            { label: 'Saldo',   value: summary.saldo, color: summary.saldo >= 0 ? '#4d8dff' : '#ff3366' },
+            { label: 'Gastos',  value: summary.fixos + summary.extras + totalParcelas, color: '#ff3366' },
+            { label: 'Saldo',   value: summary.saldo - totalParcelas, color: (summary.saldo - totalParcelas) >= 0 ? '#4d8dff' : '#ff3366' },
           ].map(item => (
             <div key={item.label} className="bg-[#0d0d1a] border border-[#1a1a2e] rounded-xl p-3 text-center">
               <p className="text-[#7070a0] text-xs mb-0.5">{item.label}</p>

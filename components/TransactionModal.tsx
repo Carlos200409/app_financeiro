@@ -1,6 +1,6 @@
 'use client'
 import { useState } from 'react'
-import { X } from 'lucide-react'
+import { X, Repeat } from 'lucide-react'
 import { Category, Transaction, MonthKey } from '@/lib/types'
 
 interface Props {
@@ -11,23 +11,31 @@ interface Props {
 }
 
 export default function TransactionModal({ month, onSave, onClose, initial }: Props) {
-  const [category, setCategory] = useState<Category>(initial?.category ?? 'fixo')
+  const [category, setCategory]   = useState<Category>(initial?.category ?? 'fixo')
   const [description, setDescription] = useState(initial?.description ?? '')
-  const [value, setValue] = useState(initial?.value ? String(initial.value) : '')
-  const [date, setDate] = useState(initial?.date ?? '')
+  const [value, setValue]         = useState(initial?.value ? String(initial.value) : '')
+  const [date, setDate]           = useState(initial?.date ?? '')
+  const [recurring, setRecurring] = useState(initial?.recurring ?? false)
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
     const v = parseFloat(value.replace(',', '.'))
     if (!description.trim() || isNaN(v) || v <= 0) return
-    onSave({ month, category, description: description.trim(), value: v, date: date || undefined })
+    onSave({
+      month,
+      category,
+      description: description.trim(),
+      value: v,
+      date: date || undefined,
+      recurring: category === 'fixo' ? recurring : false,
+    })
     onClose()
   }
 
   const cats: { value: Category; label: string; color: string }[] = [
     { value: 'receita', label: 'Receita', color: '#00e5aa' },
-    { value: 'fixo', label: 'Fixo', color: '#4d8dff' },
-    { value: 'extra', label: 'Extra', color: '#ffcc00' },
+    { value: 'fixo',    label: 'Fixo',    color: '#4d8dff' },
+    { value: 'extra',   label: 'Extra',   color: '#ffcc00' },
   ]
 
   return (
@@ -50,9 +58,7 @@ export default function TransactionModal({ month, onSave, onClose, initial }: Pr
                   type="button"
                   onClick={() => setCategory(c.value)}
                   className={`flex-1 py-2 rounded-xl text-sm font-medium transition-all border ${
-                    category === c.value
-                      ? 'border-current'
-                      : 'border-[#1a1a2e] text-[#7070a0] hover:border-[#2a2a44]'
+                    category === c.value ? 'border-current' : 'border-[#1a1a2e] text-[#7070a0] hover:border-[#2a2a44]'
                   }`}
                   style={category === c.value ? { color: c.color, borderColor: c.color, backgroundColor: c.color + '15' } : {}}
                 >
@@ -94,6 +100,25 @@ export default function TransactionModal({ month, onSave, onClose, initial }: Pr
               className="w-full bg-[#141424] border border-[#1a1a2e] rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-[#4d8dff]/50"
             />
           </div>
+
+          {/* Toggle recorrente — só aparece para fixos novos */}
+          {category === 'fixo' && !initial && (
+            <button
+              type="button"
+              onClick={() => setRecurring(r => !r)}
+              className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border transition-all ${
+                recurring
+                  ? 'border-[#4d8dff]/50 bg-[#4d8dff]/10 text-[#4d8dff]'
+                  : 'border-[#1a1a2e] text-[#7070a0] hover:border-[#2a2a44]'
+              }`}
+            >
+              <Repeat className="w-4 h-4 shrink-0" />
+              <div className="text-left">
+                <p className="text-sm font-medium">Repetir em todos os meses</p>
+                <p className="text-xs opacity-70">{recurring ? 'Deste mês até Dezembro' : 'Só neste mês'}</p>
+              </div>
+            </button>
+          )}
 
           <button
             type="submit"

@@ -1,9 +1,16 @@
 'use client'
 import { useState, useEffect, useRef, ReactNode } from 'react'
 import { DataContext, saveData, getCurrentMonth } from '@/lib/store'
-import { FinanceData, MonthKey } from '@/lib/types'
+import { FinanceData, MonthKey, MONTHS } from '@/lib/types'
 import { supabase, TABLE, ROW_ID } from '@/lib/supabase'
-import initialData from '@/lib/initial-data.json'
+
+const emptyData: FinanceData = {
+  transactions: [],
+  installments: [],
+  investments: [],
+  monthlySummaries: MONTHS.map(month => ({ month, receita: 0, fixos: 0, extras: 0, investimentos: 0, saldo: 0 })),
+  importedAt: new Date().toISOString(),
+}
 
 async function loadFromSupabase(): Promise<FinanceData | null> {
   try {
@@ -38,10 +45,10 @@ export default function DataProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // Carrega dados do Supabase (ou usa os dados iniciais da planilha)
     loadFromSupabase().then(remoteData => {
-      const finalData = remoteData ?? (initialData as FinanceData)
+      const finalData = remoteData ?? emptyData
       setDataState(finalData)
       saveData(finalData)
-      if (!remoteData) saveToSupabase(finalData) // seed inicial
+      if (!remoteData) saveToSupabase(emptyData)
       setReady(true)
     })
 

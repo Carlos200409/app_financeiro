@@ -1,9 +1,11 @@
 export function fmt(value: number): string {
+  // converte -0 para 0 para evitar "-R$ 0,00"
+  const v = value === 0 ? 0 : value
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
     currency: 'BRL',
     minimumFractionDigits: 2,
-  }).format(value)
+  }).format(v)
 }
 
 export function fmtShort(value: number): string {

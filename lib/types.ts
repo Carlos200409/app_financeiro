@@ -8,6 +8,7 @@ export interface Transaction {
   description: string
   value: number
   date?: string
+  recurring?: boolean
 }
 
 export interface Installment {

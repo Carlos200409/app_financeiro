@@ -35,24 +35,30 @@ export default function DashboardPage() {
     [data, currentMonth]
   )
 
+  const totalParcelas = useMemo(
+    () => data?.installments.filter(i => i.status === 'ATIVO').reduce((s, i) => s + i.valuePerInstallment, 0) ?? 0,
+    [data]
+  )
+
   const chartData = useMemo(
     () => data?.monthlySummaries.map(s => ({
       name: s.month,
       Receita: s.receita,
-      Gastos: s.fixos + s.extras,
-      Saldo: s.saldo,
+      Gastos: s.fixos + s.extras + totalParcelas,
+      Saldo: s.saldo - totalParcelas,
     })) ?? [],
-    [data]
+    [data, totalParcelas]
   )
 
   const donutSlices = useMemo(() => {
     if (!monthSummary) return []
     return [
-      { label: 'Fixos',       value: monthSummary.fixos,         color: '#4d8dff' },
-      { label: 'Extras',      value: monthSummary.extras,        color: '#ffcc00' },
-      { label: 'Invest.',     value: monthSummary.investimentos, color: '#9966ff' },
+      { label: 'Fixos',    value: monthSummary.fixos,    color: '#4d8dff' },
+      { label: 'Extras',   value: monthSummary.extras,   color: '#ffcc00' },
+      { label: 'Parcelas', value: totalParcelas,          color: '#ff9966' },
+      { label: 'Invest.',  value: monthSummary.investimentos, color: '#9966ff' },
     ].filter(d => d.value > 0)
-  }, [monthSummary])
+  }, [monthSummary, totalParcelas])
 
   const recentMonths = useMemo(() => {
     if (!data) return []
@@ -60,7 +66,8 @@ export default function DashboardPage() {
     return data.monthlySummaries.slice(Math.max(0, idx - 4), idx + 1).reverse()
   }, [data, currentMonth])
 
-  const totalGastos = (monthSummary?.fixos ?? 0) + (monthSummary?.extras ?? 0)
+  const totalGastos = (monthSummary?.fixos ?? 0) + (monthSummary?.extras ?? 0) + totalParcelas
+  const saldoReal   = (monthSummary?.saldo ?? 0) - totalParcelas
   const totalInvestimentos = data?.investments.reduce((s, i) => s + i.value, 0) ?? 0
 
   const handleReset = () => {
@@ -111,10 +118,10 @@ export default function DashboardPage() {
         />
         <KPICard
           title="Saldo"
-          value={monthSummary.saldo}
+          value={saldoReal}
           icon={Wallet}
-          color={monthSummary.saldo >= 0 ? 'blue' : 'red'}
-          subtitle={monthSummary.saldo >= 0 ? 'No positivo 👍' : 'Atenção!'}
+          color={saldoReal >= 0 ? 'blue' : 'red'}
+          subtitle={saldoReal >= 0 ? 'No positivo 👍' : 'Atenção!'}
         />
         <KPICard title="Patrimônio" value={totalInvestimentos} icon={PiggyBank} color="purple" subtitle="Total investido" />
       </div>
