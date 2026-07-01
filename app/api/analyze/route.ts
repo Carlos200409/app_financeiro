@@ -36,8 +36,9 @@ const SCHEMA = {
           category: { type: 'string', enum: CATEGORIES as unknown as string[] },
           level: { type: 'string', enum: LEVELS as unknown as string[] },
           reason: { type: 'string', description: 'motivo curto (máx ~12 palavras)' },
+          recurring: { type: 'boolean', description: 'true se parece cobrança/renda que se repete todo mês (salário, assinatura, aluguel, mensalidade)' },
         },
-        required: ['i', 'category', 'level', 'reason'],
+        required: ['i', 'category', 'level', 'reason', 'recurring'],
       },
     },
     insights: {
@@ -56,8 +57,10 @@ Para cada transação devolva:
 - category: uma das categorias permitidas
 - level: "essencial" (precisava mesmo), "util" (ajuda mas dá pra cortar), "superfluo" (besteira, dava pra economizar)
 - reason: motivo curto e honesto
+- recurring: true se parece cobrança/renda que se repete todo mês (salário, aluguel, mensalidade, assinatura tipo Netflix/Spotify/academia). false se é gasto avulso.
 
 Entradas de dinheiro (valor positivo) são category "Renda" e level "essencial".
+Salário (recorrente) é recurring=true; renda avulsa/variável (corrida, freela, venda) é recurring=false.
 
 Depois, em "insights", aponte 3 a 5 coisas concretas: onde está vazando dinheiro,
 quais gastos supérfluos somam mais, e quanto daria pra sobrar cortando. Use valores em R$.
@@ -113,7 +116,7 @@ export async function POST(request: Request) {
     const parsed = JSON.parse(textBlock && 'text' in textBlock ? textBlock.text : '{}')
 
     // Junta o julgamento do Claude de volta com os dados originais (por índice).
-    const byIndex = new Map<number, { category: string; level: string; reason: string }>()
+    const byIndex = new Map<number, { category: string; level: string; reason: string; recurring: boolean }>()
     for (const it of parsed.items ?? []) byIndex.set(it.i, it)
 
     const result = transactions.map((t, i) => ({
@@ -121,6 +124,7 @@ export async function POST(request: Request) {
       category: byIndex.get(i)?.category ?? 'Outros',
       level: byIndex.get(i)?.level ?? 'util',
       reason: byIndex.get(i)?.reason ?? '',
+      recurring: byIndex.get(i)?.recurring ?? false,
     }))
 
     return Response.json({ transactions: result, insights: parsed.insights ?? [] })

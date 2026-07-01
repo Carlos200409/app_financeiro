@@ -39,12 +39,28 @@ export interface MonthSummary {
   saldo: number
 }
 
+export type SpendingLevel = 'essencial' | 'util' | 'superfluo'
+
+// Transação de extrato bancário categorizada pela IA. Fica salva no FinanceData
+// pra nunca re-chamar a API sobre os mesmos dados (custo baixo).
+export interface AnalyzedTransaction {
+  date: string // ISO YYYY-MM-DD quando dá; senão texto original
+  description: string
+  amount: number // negativo = saída, positivo = entrada
+  category: string // categoria da IA (Alimentação, Transporte, Renda, ...)
+  level: SpendingLevel
+  reason: string
+  recurring: boolean // parece cobrança/renda mensal recorrente (salário, assinatura, aluguel)
+}
+
 export interface FinanceData {
   transactions: Transaction[]
   installments: Installment[]
   investments: Investment[]
   monthlySummaries: MonthSummary[]
   importedAt: string
+  analyzed?: AnalyzedTransaction[] // resultado da última análise de extrato pela IA
+  insights?: string[] // insights da IA sobre onde economizar
 }
 
 export const MONTHS: MonthKey[] = ['JAN','FEV','MAR','ABR','MAI','JUN','JUL','AGO','SET','OUT','NOV','DEZ']

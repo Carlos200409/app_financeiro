@@ -3,12 +3,8 @@ import { useState, useMemo, useCallback } from 'react'
 import { Upload, Loader2, Sparkles, AlertTriangle } from 'lucide-react'
 import { parseExtrato, RawTransaction } from '@/lib/extrato-parser'
 import { fmt } from '@/lib/format'
-
-interface AnalyzedTransaction extends RawTransaction {
-  category: string
-  level: 'essencial' | 'util' | 'superfluo'
-  reason: string
-}
+import { useData } from '@/lib/store'
+import { AnalyzedTransaction } from '@/lib/types'
 
 const LEVEL_STYLE: Record<string, { label: string; color: string; bg: string }> = {
   essencial: { label: 'Essencial', color: '#4ade80', bg: 'rgba(74,222,128,0.12)' },
@@ -17,6 +13,7 @@ const LEVEL_STYLE: Record<string, { label: string; color: string; bg: string }> 
 }
 
 export default function AnalisePage() {
+  const { data, setData } = useData()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [txs, setTxs] = useState<AnalyzedTransaction[] | null>(null)
@@ -36,19 +33,24 @@ export default function AnalisePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ transactions: raw }),
       })
-      const data = await res.json()
+      const payload = await res.json()
       if (!res.ok) {
-        setError(data.error ?? 'Erro ao analisar.')
+        setError(payload.error ?? 'Erro ao analisar.')
         return
       }
-      setTxs(data.transactions)
-      setInsights(data.insights ?? [])
+      const analyzed = payload.transactions as AnalyzedTransaction[]
+      const newInsights: string[] = payload.insights ?? []
+      setTxs(analyzed)
+      setInsights(newInsights)
+      // Persiste o resultado (localStorage + Supabase) pra o Resumo/Gastos lerem
+      // sem re-chamar a API. ponytail: substitui a última análise, não acumula ainda.
+      if (data) setData({ ...data, analyzed, insights: newInsights })
     } catch {
       setError('Falha de conexão ao analisar.')
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [data, setData])
 
   const handleFile = useCallback(async (file: File) => {
     const text = await file.text()
