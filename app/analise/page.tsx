@@ -24,6 +24,14 @@ export default function AnalisePage() {
       setError('Não consegui ler nenhuma transação desse arquivo. Confere se é o extrato em CSV ou OFX.')
       return
     }
+    // Guard: extrato de verdade tem datas em quase toda linha. Se quase nenhuma
+    // parseou como data, é lixo (holerite/imagem/PDF lido como texto) — não manda
+    // pra IA, pra não alucinar nem gastar API à toa.
+    const comData = raw.filter((t) => /^\d{4}-\d{2}-\d{2}/.test(t.date)).length
+    if (comData < 2 || comData < raw.length * 0.3) {
+      setError('Isso não parece um extrato bancário. Se for holerite ou uma foto/PDF, a leitura por imagem ainda está no roadmap — por enquanto, sobe o extrato exportado do app do banco em CSV ou OFX.')
+      return
+    }
     setLoading(true)
     setError(null)
     setTxs(null)
@@ -53,6 +61,10 @@ export default function AnalisePage() {
   }, [data, setData])
 
   const handleFile = useCallback(async (file: File) => {
+    if (/\.(pdf|jpe?g|png|heic|webp)$/i.test(file.name)) {
+      setError('Foto/PDF (tipo holerite) ainda não é lido por imagem — isso está no roadmap. Por enquanto, sobe o extrato em CSV ou OFX exportado do app do banco.')
+      return
+    }
     const text = await file.text()
     analyze(parseExtrato(text))
   }, [analyze])
