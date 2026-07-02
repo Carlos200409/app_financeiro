@@ -101,8 +101,11 @@ export async function POST(request: Request) {
     if (e instanceof Anthropic.AuthenticationError) {
       return Response.json({ error: 'API key do Claude inválida.' }, { status: 401 })
     }
-    console.error('extrato-foto error', e)
     const msg = e instanceof Error ? e.message : String(e)
-    return Response.json({ error: `Erro ao ler: ${msg}` }, { status: 500 })
+    if (/credit balance is too low/i.test(msg)) {
+      return Response.json({ error: 'Os créditos da API do Claude acabaram. Adicione em console.anthropic.com → Billing e tente de novo.' }, { status: 402 })
+    }
+    console.error('extrato-foto error', e)
+    return Response.json({ error: 'Erro ao ler. Tenta de novo.' }, { status: 500 })
   }
 }
