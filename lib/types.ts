@@ -53,6 +53,19 @@ export interface AnalyzedTransaction {
   recurring: boolean // parece cobrança/renda mensal recorrente (salário, assinatura, aluguel)
 }
 
+// Holerite lido por foto (Claude vision). Vira renda fixa no Resumo.
+export interface Holerite {
+  competencia: string // "Junho/2026" ou "06/2026"
+  tipo: string // adiantamento | fechamento | completo | outro
+  empregador: string
+  salarioBase: number
+  bruto: number // total de vencimentos deste recibo
+  descontos: number
+  liquido: number // valor líquido recebido
+  confianca: string // alta | media | baixa
+  addedAt: string // ISO
+}
+
 export interface FinanceData {
   transactions: Transaction[]
   installments: Installment[]
@@ -61,6 +74,7 @@ export interface FinanceData {
   importedAt: string
   analyzed?: AnalyzedTransaction[] // resultado da última análise de extrato pela IA
   insights?: string[] // insights da IA sobre onde economizar
+  holerites?: Holerite[] // holerites lidos por foto (renda fixa)
 }
 
 export const MONTHS: MonthKey[] = ['JAN','FEV','MAR','ABR','MAI','JUN','JUL','AGO','SET','OUT','NOV','DEZ']

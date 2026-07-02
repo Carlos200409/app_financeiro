@@ -9,15 +9,20 @@ import { AnalyzedTransaction } from '@/lib/types'
 
 export default function ResumoPage() {
   const { data } = useData()
-  const analyzed = data?.analyzed
 
   const s = useMemo(() => {
-    if (!analyzed || analyzed.length === 0) return null
+    const analyzed = data?.analyzed ?? []
+    const holerites = data?.holerites ?? []
+    if (analyzed.length === 0 && holerites.length === 0) return null
 
     const entradas = analyzed.filter((t) => t.amount > 0)
     const saidas = analyzed.filter((t) => t.amount < 0)
 
-    const rendaFixa = entradas.filter((t) => t.recurring).reduce((a, t) => a + t.amount, 0)
+    const holeriteLiquido = holerites.reduce((a, h) => a + (h.liquido || 0), 0)
+    const rendaFixaExtrato = entradas.filter((t) => t.recurring).reduce((a, t) => a + t.amount, 0)
+    // Holerite é a fonte autoritativa da renda fixa; havendo holerite, usa ele
+    // pra não contar o salário duas vezes (holerite + depósito no extrato).
+    const rendaFixa = holerites.length > 0 ? holeriteLiquido : rendaFixaExtrato
     const rendaVariavel = entradas.filter((t) => !t.recurring).reduce((a, t) => a + t.amount, 0)
     const renda = rendaFixa + rendaVariavel
 
@@ -38,7 +43,7 @@ export default function ResumoPage() {
     const periodo = datas.length ? `${br(datas[0])} – ${br(datas[datas.length - 1])}` : null
 
     return { renda, rendaFixa, rendaVariavel, gastos, sobrou, besteira, assinaturas, categorias, maiorFuga, periodo, total: analyzed.length }
-  }, [analyzed])
+  }, [data?.analyzed, data?.holerites])
 
   return (
     <div className="px-4 md:px-8 py-6 max-w-5xl mx-auto">
@@ -80,6 +85,7 @@ export default function ResumoPage() {
           </div>
 
           {/* Onde vai o dinheiro */}
+          {s.categorias.length > 0 && (
           <div className="bg-[#141424] border border-[#1a1a2e] rounded-2xl p-5 mt-6">
             <h2 className="text-sm font-semibold mb-4">Onde vai o dinheiro</h2>
             <div className="space-y-3">
@@ -104,6 +110,7 @@ export default function ResumoPage() {
               </p>
             )}
           </div>
+          )}
 
           {/* Insights da IA */}
           {data?.insights && data.insights.length > 0 && (
