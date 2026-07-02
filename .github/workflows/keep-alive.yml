@@ -1,0 +1,20 @@
+name: keep-alive
+
+# Dá um "oi" no Supabase 2x por semana pra o free tier não pausar por inatividade.
+# Grátis (roda no GitHub Actions). Zero custo, zero manutenção.
+
+on:
+  schedule:
+    - cron: '0 6 * * 1,4' # segunda e quinta, 06:00 UTC
+  workflow_dispatch: {} # permite rodar na mão pra testar
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase
+        run: |
+          curl -sS -o /dev/null -w "HTTP %{http_code}\n" \
+            "${{ secrets.SUPABASE_URL }}/rest/v1/finance_data?select=id&limit=1" \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}"
