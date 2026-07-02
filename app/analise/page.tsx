@@ -2,7 +2,7 @@
 import { useState, useMemo, useCallback } from 'react'
 import { Upload, Loader2, Sparkles, AlertTriangle, FileText, Camera, CheckCircle2 } from 'lucide-react'
 import { parseExtrato, RawTransaction } from '@/lib/extrato-parser'
-import { fileToScaledBase64 } from '@/lib/image'
+import { fileToScaledBase64, fileToBase64 } from '@/lib/image'
 import { fmt } from '@/lib/format'
 import { useData } from '@/lib/store'
 import { AnalyzedTransaction, Holerite } from '@/lib/types'
@@ -27,7 +27,16 @@ export default function AnalisePage() {
   const reset = () => { setError(null); setTxs(null); setInsights([]); setHolerite(null) }
   const switchMode = (m: Mode) => { setMode(m); reset() }
 
-  // --- Extrato (CSV/OFX) ---
+  // Aplica o resultado (texto ou visão) — mesma tela, mesma persistência.
+  const applyResult = useCallback((payload: { transactions: AnalyzedTransaction[]; insights?: string[] }) => {
+    const analyzed = payload.transactions
+    const newInsights = payload.insights ?? []
+    setTxs(analyzed)
+    setInsights(newInsights)
+    if (data) setData({ ...data, analyzed, insights: newInsights })
+  }, [data, setData])
+
+  // --- Extrato em texto (CSV/OFX) ---
   const analyze = useCallback(async (raw: RawTransaction[]) => {
     if (!raw.length) {
       setError('Não consegui ler nenhuma transação desse arquivo. Confere se é o extrato em CSV ou OFX.')
@@ -35,7 +44,7 @@ export default function AnalisePage() {
     }
     const comData = raw.filter((t) => /^\d{4}-\d{2}-\d{2}/.test(t.date)).length
     if (comData < 2 || comData < raw.length * 0.3) {
-      setError('Isso não parece um extrato bancário. Se for holerite, use o modo "Holerite (foto)" ali em cima.')
+      setError('Isso não parece um extrato. Se for foto/PDF, tudo bem — deixa eu ler por imagem (pode demorar uns segundos).')
       return
     }
     setLoading(true)
@@ -48,30 +57,47 @@ export default function AnalisePage() {
         body: JSON.stringify({ transactions: raw }),
       })
       const payload = await res.json()
-      if (!res.ok) {
-        setError(payload.error ?? 'Erro ao analisar.')
-        return
-      }
-      const analyzed = payload.transactions as AnalyzedTransaction[]
-      const newInsights: string[] = payload.insights ?? []
-      setTxs(analyzed)
-      setInsights(newInsights)
-      if (data) setData({ ...data, analyzed, insights: newInsights })
+      if (!res.ok) { setError(payload.error ?? 'Erro ao analisar.'); return }
+      applyResult(payload)
     } catch {
       setError('Falha de conexão ao analisar.')
     } finally {
       setLoading(false)
     }
-  }, [data, setData])
+  }, [applyResult])
+
+  // --- Extrato/fatura/nota fiscal por foto ou PDF (visão) ---
+  const analyzeFoto = useCallback(async (file: File) => {
+    setLoading(true)
+    setError(null)
+    setTxs(null)
+    try {
+      const isPdf = /\.pdf$/i.test(file.name) || file.type === 'application/pdf'
+      const { base64, mediaType } = isPdf ? await fileToBase64(file) : await fileToScaledBase64(file)
+      const res = await fetch('/api/extrato-foto', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: base64, mediaType }),
+      })
+      const payload = await res.json()
+      if (!res.ok) { setError(payload.error ?? 'Erro ao ler.'); return }
+      applyResult(payload)
+    } catch {
+      setError('Falha ao processar o arquivo.')
+    } finally {
+      setLoading(false)
+    }
+  }, [applyResult])
 
   const handleExtrato = useCallback(async (file: File) => {
-    if (/\.(pdf|jpe?g|png|heic|webp)$/i.test(file.name)) {
-      setError('Isso parece uma foto/PDF. Pra holerite, use o modo "Holerite (foto)". Extrato tem que ser CSV ou OFX.')
-      return
+    // Texto → parser rápido/barato. PDF ou imagem → visão.
+    if (/\.(csv|ofx|txt)$/i.test(file.name)) {
+      const text = await file.text()
+      analyze(parseExtrato(text))
+    } else {
+      analyzeFoto(file)
     }
-    const text = await file.text()
-    analyze(parseExtrato(text))
-  }, [analyze])
+  }, [analyze, analyzeFoto])
 
   // --- Holerite (foto) ---
   const handleHolerite = useCallback(async (file: File) => {
@@ -120,7 +146,7 @@ export default function AnalisePage() {
         <h1 className="text-xl font-semibold">Analisar</h1>
       </div>
       <p className="text-[#7070a0] text-sm mb-5">
-        Extrato do banco (CSV/OFX) pra ver gastos, ou foto do holerite pra registrar sua renda.
+        Extrato pra ver gastos (CSV, OFX, PDF ou foto), ou foto do holerite pra registrar sua renda.
       </p>
 
       {/* Toggle de modo */}
@@ -133,10 +159,10 @@ export default function AnalisePage() {
       {!loading && !txs && !holerite && (
         mode === 'extrato' ? (
           <UploadBox
-            accept=".csv,.ofx,.txt"
+            accept=".csv,.ofx,.txt,.pdf,image/*"
             onFile={handleExtrato}
             title="Clique para escolher o extrato"
-            hint="CSV ou OFX exportado do app do banco"
+            hint="CSV, OFX, PDF ou foto do extrato/nota fiscal"
           />
         ) : (
           <UploadBox

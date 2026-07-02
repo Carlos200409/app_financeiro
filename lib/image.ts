@@ -20,3 +20,11 @@ export async function fileToScaledBase64(
   const dataUrl = canvas.toDataURL('image/jpeg', 0.85)
   return { base64: dataUrl.split(',')[1], mediaType: 'image/jpeg' }
 }
+
+// Lê qualquer arquivo (ex: PDF) como base64 puro, sem mexer no conteúdo.
+export async function fileToBase64(file: File): Promise<{ base64: string; mediaType: string }> {
+  const buf = new Uint8Array(await file.arrayBuffer())
+  let bin = ''
+  for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i])
+  return { base64: btoa(bin), mediaType: file.type || 'application/pdf' }
+}

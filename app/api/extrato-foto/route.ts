@@ -1,0 +1,101 @@
+import Anthropic from '@anthropic-ai/sdk'
+
+// Lê extrato/fatura/nota fiscal por FOTO ou PDF com Claude vision, extrai as
+// transações e já categoriza — devolve o mesmo formato de /api/analyze.
+// Usado quando o banco não dá CSV/OFX. A key fica só no servidor.
+
+// Opus: extrair números de foto/PDF exige precisão (igual holerite). Sob demanda.
+const MODEL = 'claude-opus-4-8'
+
+const CATEGORIES = [
+  'Alimentação', 'Supermercado', 'Transporte', 'Moradia', 'Saúde', 'Educação',
+  'Lazer', 'Assinaturas', 'Compras', 'Beleza', 'Investimento', 'Renda',
+  'Taxas/IOF', 'Transferência', 'Outros',
+] as const
+const LEVELS = ['essencial', 'util', 'superfluo'] as const
+
+const SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    ehExtrato: { type: 'boolean', description: 'true se a imagem/PDF tem transações financeiras (extrato, fatura, recibo, nota fiscal)' },
+    transactions: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          date: { type: 'string', description: 'data ISO YYYY-MM-DD; vazio se não houver' },
+          description: { type: 'string' },
+          amount: { type: 'number', description: 'negativo = saída/gasto, positivo = entrada' },
+          category: { type: 'string', enum: CATEGORIES as unknown as string[] },
+          level: { type: 'string', enum: LEVELS as unknown as string[] },
+          reason: { type: 'string', description: 'motivo curto; numa nota fiscal, cite os itens principais aqui' },
+          recurring: { type: 'boolean' },
+        },
+        required: ['date', 'description', 'amount', 'category', 'level', 'reason', 'recurring'],
+      },
+    },
+    insights: { type: 'array', items: { type: 'string' } },
+  },
+  required: ['ehExtrato', 'transactions', 'insights'],
+}
+
+const SYSTEM = `Você lê extratos bancários, faturas de cartão, recibos e notas fiscais a partir de FOTO ou PDF.
+
+- Extraia CADA transação: data, descrição, valor (negativo = gasto/saída, positivo = entrada).
+- A imagem pode estar torta/dobrada/escura — leia mesmo assim. Não invente número que não está lá.
+- Categorize cada uma: category (da lista), level (essencial/util/superfluo), recurring (repete todo mês? salário/assinatura/aluguel).
+- Numa NOTA FISCAL de uma compra só: registre a compra (estabelecimento + total) e liste os itens principais no campo "reason".
+- Entradas positivas = category "Renda", level "essencial".
+- Se NÃO houver transação nenhuma (foto aleatória), retorne ehExtrato=false e transactions vazio.
+- Em "insights", 3 a 5 frases diretas de onde economizar. Valores em R$.`
+
+export async function POST(request: Request) {
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) return Response.json({ error: 'ANTHROPIC_API_KEY não configurada.' }, { status: 500 })
+
+  let data: string
+  let mediaType: string
+  try {
+    const body = await request.json()
+    data = body.data
+    mediaType = body.mediaType ?? 'image/jpeg'
+  } catch {
+    return Response.json({ error: 'Requisição inválida.' }, { status: 400 })
+  }
+  if (!data) return Response.json({ error: 'Nenhum arquivo enviado.' }, { status: 400 })
+
+  const client = new Anthropic({ apiKey })
+  const isPdf = mediaType === 'application/pdf'
+  const fileBlock = isPdf
+    ? { type: 'document' as const, source: { type: 'base64' as const, media_type: 'application/pdf' as const, data } }
+    : { type: 'image' as const, source: { type: 'base64' as const, media_type: mediaType as 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif', data } }
+
+  try {
+    const message = await client.messages.create({
+      model: MODEL,
+      max_tokens: 16000,
+      system: SYSTEM,
+      output_config: { format: { type: 'json_schema', schema: SCHEMA } },
+      messages: [
+        { role: 'user', content: [fileBlock, { type: 'text', text: 'Leia e extraia as transações no formato pedido.' }] },
+      ],
+    })
+
+    const textBlock = message.content.find((b) => b.type === 'text')
+    const parsed = JSON.parse(textBlock && 'text' in textBlock ? textBlock.text : '{}')
+
+    if (!parsed.ehExtrato || !Array.isArray(parsed.transactions) || parsed.transactions.length === 0) {
+      return Response.json({ error: 'Não achei transações nessa imagem/PDF. Tenta uma foto mais nítida do extrato.' }, { status: 422 })
+    }
+
+    return Response.json({ transactions: parsed.transactions, insights: parsed.insights ?? [] })
+  } catch (e) {
+    if (e instanceof Anthropic.AuthenticationError) {
+      return Response.json({ error: 'API key do Claude inválida.' }, { status: 401 })
+    }
+    console.error('extrato-foto error', e)
+    return Response.json({ error: 'Erro ao ler. Tenta de novo.' }, { status: 500 })
+  }
+}
