@@ -1,8 +1,10 @@
 'use client'
 import { useState, useEffect, useRef, ReactNode } from 'react'
+import type { Session } from '@supabase/supabase-js'
 import { DataContext, saveData, getCurrentMonth } from '@/lib/store'
 import { FinanceData, MonthKey, MONTHS } from '@/lib/types'
 import { supabase, TABLE, ROW_ID } from '@/lib/supabase'
+import Login from './Login'
 
 const emptyData: FinanceData = {
   transactions: [],
@@ -39,11 +41,26 @@ async function saveToSupabase(financeData: FinanceData): Promise<void> {
 export default function DataProvider({ children }: { children: ReactNode }) {
   const [data, setDataState] = useState<FinanceData | null>(null)
   const [currentMonth, setCurrentMonth] = useState<MonthKey>(getCurrentMonth())
+  const [session, setSession] = useState<Session | null>(null)
+  const [authReady, setAuthReady] = useState(false)
   const [ready, setReady] = useState(false)
   const isSaving = useRef(false)
 
+  // Autenticação: sem sessão → tela de login. RLS no Supabase só libera dados
+  // pra quem está logado, então nada carrega sem sessão.
   useEffect(() => {
-    // Carrega dados do Supabase (ou usa os dados iniciais da planilha)
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session)
+      setAuthReady(true)
+    })
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => setSession(s))
+    return () => sub.subscription.unsubscribe()
+  }, [])
+
+  useEffect(() => {
+    if (!session) return
+    setReady(false)
+    // Carrega dados do Supabase (ou usa os dados iniciais)
     loadFromSupabase().then(remoteData => {
       const finalData = remoteData ?? emptyData
       setDataState(finalData)
@@ -69,7 +86,7 @@ export default function DataProvider({ children }: { children: ReactNode }) {
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
-  }, [])
+  }, [session])
 
   const setData = (d: FinanceData) => {
     isSaving.current = true
@@ -80,13 +97,15 @@ export default function DataProvider({ children }: { children: ReactNode }) {
     })
   }
 
-  if (!ready) {
-    return (
-      <div className="min-h-screen bg-[#070711] flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-[#4d8dff] border-t-transparent rounded-full animate-spin" />
-      </div>
-    )
-  }
+  const spinner = (
+    <div className="min-h-screen bg-[#070711] flex items-center justify-center">
+      <div className="w-8 h-8 border-2 border-[#4d8dff] border-t-transparent rounded-full animate-spin" />
+    </div>
+  )
+
+  if (!authReady) return spinner
+  if (!session) return <Login />
+  if (!ready) return spinner
 
   return (
     <DataContext.Provider value={{ data, setData, currentMonth, setCurrentMonth }}>
