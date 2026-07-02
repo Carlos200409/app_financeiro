@@ -3,6 +3,7 @@ import './globals.css'
 import Navigation from '@/components/Navigation'
 import DataProvider from '@/components/DataProvider'
 import QuickAdd from '@/components/QuickAdd'
+import PageTransition from '@/components/PageTransition'
 
 export const metadata: Metadata = {
   title: 'Finance Dashboard',
@@ -30,8 +31,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <DataProvider>
           <div className="flex min-h-screen">
             <Navigation />
-            <main className="flex-1 md:ml-60 pb-20 md:pb-0 min-h-screen">
-              {children}
+            <main className="flex-1 md:ml-60 pb-24 md:pb-0 min-h-screen">
+              <PageTransition>{children}</PageTransition>
             </main>
           </div>
           <QuickAdd />
