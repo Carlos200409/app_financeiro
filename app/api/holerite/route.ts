@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
+import { isAuthenticated } from '@/lib/auth-guard'
 
 // Lê holerite por foto com Claude vision. Devolve estruturado: competência,
 // tipo (adiantamento/fechamento), bruto, descontos, líquido. A key fica só aqui
@@ -39,6 +40,9 @@ Regras:
 - Números em reais, use ponto decimal (2000.00, não "2.000,00").`
 
 export async function POST(request: Request) {
+  if (!(await isAuthenticated(request))) {
+    return Response.json({ error: 'Faça login para usar a IA.' }, { status: 401 })
+  }
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) {
     return Response.json({ error: 'ANTHROPIC_API_KEY não configurada.' }, { status: 500 })

@@ -3,6 +3,7 @@ import { useState, useMemo, useCallback } from 'react'
 import { Upload, Loader2, Sparkles, AlertTriangle, FileText, Camera, CheckCircle2 } from 'lucide-react'
 import { parseExtrato, RawTransaction } from '@/lib/extrato-parser'
 import { fileToScaledBase64, fileToBase64 } from '@/lib/image'
+import { authHeaders } from '@/lib/api'
 import { fmt } from '@/lib/format'
 import { useData } from '@/lib/store'
 import { AnalyzedTransaction, Holerite } from '@/lib/types'
@@ -48,7 +49,7 @@ export default function AnalisePage() {
     try {
       const res = await fetch('/api/analyze', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await authHeaders(),
         body: JSON.stringify({ transactions: raw }),
       })
       const payload = await res.json()
@@ -71,7 +72,7 @@ export default function AnalisePage() {
       const { base64, mediaType } = isPdf ? await fileToBase64(file) : await fileToScaledBase64(file)
       const res = await fetch('/api/extrato-foto', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await authHeaders(),
         body: JSON.stringify({ data: base64, mediaType }),
       })
       const payload = await res.json()
@@ -113,7 +114,7 @@ export default function AnalisePage() {
       const { base64, mediaType } = await fileToScaledBase64(file)
       const res = await fetch('/api/holerite', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await authHeaders(),
         body: JSON.stringify({ image: base64, mediaType }),
       })
       const payload = await res.json()

@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
+import { isAuthenticated } from '@/lib/auth-guard'
 
 // O cérebro: recebe transações cruas → Claude categoriza e julga cada uma →
 // devolve categoria, nível (essencial/útil/supérfluo), motivo e insights de onde
@@ -67,6 +68,9 @@ quais gastos supérfluos somam mais, e quanto daria pra sobrar cortando. Use val
 Seja direto como um amigo que entende de dinheiro — sem enrolação.`
 
 export async function POST(request: Request) {
+  if (!(await isAuthenticated(request))) {
+    return Response.json({ error: 'Faça login para usar a IA.' }, { status: 401 })
+  }
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) {
     return Response.json(

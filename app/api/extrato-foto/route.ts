@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
+import { isAuthenticated } from '@/lib/auth-guard'
 
 // Lê extrato/fatura/nota fiscal por FOTO ou PDF com Claude vision, extrai as
 // transações e já categoriza — devolve o mesmo formato de /api/analyze.
@@ -53,6 +54,9 @@ const SYSTEM = `Você lê extratos bancários, faturas de cartão, recibos e not
 - Em "insights", 3 a 5 frases diretas de onde economizar. Valores em R$.`
 
 export async function POST(request: Request) {
+  if (!(await isAuthenticated(request))) {
+    return Response.json({ error: 'Faça login para usar a IA.' }, { status: 401 })
+  }
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) return Response.json({ error: 'ANTHROPIC_API_KEY não configurada.' }, { status: 500 })
 
