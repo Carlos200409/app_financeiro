@@ -141,6 +141,7 @@ export async function POST(request: Request) {
       return Response.json({ error: 'API key do Claude inválida. Confira o .env.local.' }, { status: 401 })
     }
     console.error('analyze error', e)
-    return Response.json({ error: 'Erro ao analisar. Tente de novo.' }, { status: 500 })
+    const msg = e instanceof Error ? e.message : String(e)
+    return Response.json({ error: `Erro ao analisar: ${msg}` }, { status: 500 })
   }
 }

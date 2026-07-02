@@ -97,6 +97,7 @@ export async function POST(request: Request) {
       return Response.json({ error: 'API key do Claude inválida.' }, { status: 401 })
     }
     console.error('holerite error', e)
-    return Response.json({ error: 'Erro ao ler o holerite. Tenta de novo.' }, { status: 500 })
+    const msg = e instanceof Error ? e.message : String(e)
+    return Response.json({ error: `Erro ao ler o holerite: ${msg}` }, { status: 500 })
   }
 }
