@@ -32,10 +32,12 @@ export default function GastosPage() {
         Pra onde vai seu dinheiro{s?.periodo ? ` · ${s.periodo}` : ''}.
       </p>
 
-      {!s || !s.temExtrato ? (
+      {!s?.temExtrato && parcelas.length === 0 ? (
         <EmptyState />
       ) : (
         <>
+          {s && s.temExtrato && (
+          <>
           {/* Total + níveis */}
           <div className="bg-[#141424] border border-[#1a1a2e] rounded-2xl p-5 mb-6">
             <div className="flex items-baseline justify-between mb-4">
@@ -91,6 +93,8 @@ export default function GastosPage() {
                 ))}
               </div>
             </div>
+          )}
+          </>
           )}
 
           {/* Parcelas ativas */}
