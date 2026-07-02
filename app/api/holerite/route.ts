@@ -5,10 +5,10 @@ import { isAuthenticated } from '@/lib/auth-guard'
 // tipo (adiantamento/fechamento), bruto, descontos, líquido. A key fica só aqui
 // no servidor. 1 foto por mês → custo em centavos.
 
-// Opus 4.8: leitura de holerite exige precisão em foto torta/dobrada/escura —
-// o Haiku alucinou (inventou empregador e valores). É 1 foto/mês, então o custo
-// (~2 centavos) compensa a precisão. Haiku só serve pra extrato em texto.
-const MODEL = 'claude-opus-4-8'
+// Sonnet 4.6: meio-termo — bem mais barato que Opus e muito mais preciso que
+// Haiku (que alucinava em foto torta). Se algum holerite vier errado, o usuário
+// edita (dados são editáveis) ou sobe pra 'claude-opus-4-8'.
+const MODEL = 'claude-sonnet-4-6'
 
 const SCHEMA = {
   type: 'object',

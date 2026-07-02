@@ -5,8 +5,9 @@ import { isAuthenticated } from '@/lib/auth-guard'
 // transações e já categoriza — devolve o mesmo formato de /api/analyze.
 // Usado quando o banco não dá CSV/OFX. A key fica só no servidor.
 
-// Opus: extrair números de foto/PDF exige precisão (igual holerite). Sob demanda.
-const MODEL = 'claude-opus-4-8'
+// Sonnet 4.6: meio-termo — mais barato que Opus, preciso o bastante pra ler
+// foto/PDF de extrato. Itens editáveis se algo vier errado.
+const MODEL = 'claude-sonnet-4-6'
 
 const CATEGORIES = [
   'Alimentação', 'Supermercado', 'Transporte', 'Moradia', 'Saúde', 'Educação',
