@@ -5,9 +5,10 @@ import { isAuthenticated } from '@/lib/auth-guard'
 // devolve categoria, nível (essencial/útil/supérfluo), motivo e insights de onde
 // dá pra sobrar. A API key fica SÓ aqui no servidor (process.env), nunca no front.
 
-// Haiku 4.5: categorização em lote é tarefa simples e de alto volume — barato e
-// rápido. Trocar por 'claude-opus-4-8' se quiser julgamento mais fino.
-const MODEL = 'claude-haiku-4-5'
+// Sonnet 4.6: mesmo modelo das leituras de foto (consistência). Categorização de
+// texto é leve, então o custo segue baixo (centavos). Trocar por 'claude-haiku-4-5'
+// pra ficar ainda mais barato, ou 'claude-opus-4-8' pra julgamento mais fino.
+const MODEL = 'claude-sonnet-4-6'
 
 const CATEGORIES = [
   'Alimentação', 'Supermercado', 'Transporte', 'Moradia', 'Saúde', 'Educação',
