@@ -4,9 +4,10 @@ import Anthropic from '@anthropic-ai/sdk'
 // tipo (adiantamento/fechamento), bruto, descontos, líquido. A key fica só aqui
 // no servidor. 1 foto por mês → custo em centavos.
 
-// Haiku 4.5 tem visão e é barato. Se a leitura vier imprecisa em fotos ruins
-// (torta, dobrada, escura), trocar por 'claude-opus-4-8' — mais caro, mais preciso.
-const MODEL = 'claude-haiku-4-5'
+// Opus 4.8: leitura de holerite exige precisão em foto torta/dobrada/escura —
+// o Haiku alucinou (inventou empregador e valores). É 1 foto/mês, então o custo
+// (~2 centavos) compensa a precisão. Haiku só serve pra extrato em texto.
+const MODEL = 'claude-opus-4-8'
 
 const SCHEMA = {
   type: 'object',
