@@ -42,11 +42,6 @@ export default function AnalisePage() {
       setError('Não consegui ler nenhuma transação desse arquivo. Confere se é o extrato em CSV ou OFX.')
       return
     }
-    const comData = raw.filter((t) => /^\d{4}-\d{2}-\d{2}/.test(t.date)).length
-    if (comData < 2 || comData < raw.length * 0.3) {
-      setError('Isso não parece um extrato. Se for foto/PDF, tudo bem — deixa eu ler por imagem (pode demorar uns segundos).')
-      return
-    }
     setLoading(true)
     setError(null)
     setTxs(null)
@@ -90,12 +85,22 @@ export default function AnalisePage() {
   }, [applyResult])
 
   const handleExtrato = useCallback(async (file: File) => {
-    // Texto → parser rápido/barato. PDF ou imagem → visão.
-    if (/\.(csv|ofx|txt)$/i.test(file.name)) {
-      const text = await file.text()
-      analyze(parseExtrato(text))
-    } else {
-      analyzeFoto(file)
+    setError(null)
+    try {
+      // Texto → parser rápido/barato. PDF ou imagem → visão.
+      if (/\.(csv|ofx|txt|qfx)$/i.test(file.name) || /text|csv/.test(file.type)) {
+        const text = await file.text()
+        const parsed = parseExtrato(text)
+        if (!parsed.length) {
+          setError('Não achei transações nesse arquivo. Ele é mesmo o extrato em CSV/OFX? Se for foto/PDF, funciona também.')
+          return
+        }
+        analyze(parsed)
+      } else {
+        analyzeFoto(file)
+      }
+    } catch {
+      setError('Não consegui abrir esse arquivo. Tenta de novo, ou me diz qual é o formato.')
     }
   }, [analyze, analyzeFoto])
 
@@ -272,7 +277,7 @@ function UploadBox({ accept, onFile, title, hint }: { accept: string; onFile: (f
         type="file"
         accept={accept}
         className="hidden"
-        onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f) }}
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); e.target.value = '' }}
       />
       <Upload className="w-8 h-8 text-[#4d8dff] mx-auto mb-3" />
       <p className="font-medium">{title}</p>
