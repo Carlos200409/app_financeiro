@@ -108,7 +108,7 @@ export default function GastosPage() {
                   <div key={p.id} className="flex justify-between py-2.5 text-sm">
                     <div className="min-w-0">
                       <p className="text-[#b0b0d0] truncate">{p.description}</p>
-                      <p className="text-xs text-[#505070]">{p.paid}/{p.totalInstallments} pagas · falta {fmt(p.remaining)}</p>
+                      <p className="text-xs text-[#505070]">{p.paid}/{p.totalInstallments} pagas · faltam {p.remaining}x ({fmt(p.remaining * p.valuePerInstallment)})</p>
                     </div>
                     <span className="text-white font-medium shrink-0 ml-3">{fmt(p.valuePerInstallment)}/mês</span>
                   </div>
