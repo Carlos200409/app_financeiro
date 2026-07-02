@@ -1,14 +1,13 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Calendar, CreditCard, TrendingUp, BarChart3, Sparkles } from 'lucide-react'
+import { LayoutDashboard, CreditCard, TrendingUp, BarChart3, Sparkles } from 'lucide-react'
 
 const NAV = [
   { href: '/resumo', icon: LayoutDashboard, label: 'Resumo' },
   { href: '/analise', icon: Sparkles, label: 'Analisar' },
-  { href: '/mes', icon: Calendar, label: 'Mês' },
-  { href: '/parcelas', icon: CreditCard, label: 'Parcelas' },
-  { href: '/investimentos', icon: TrendingUp, label: 'Invest.' },
+  { href: '/gastos', icon: CreditCard, label: 'Gastos' },
+  { href: '/investir', icon: TrendingUp, label: 'Investir' },
   { href: '/historico', icon: BarChart3, label: 'Histórico' },
 ]
 

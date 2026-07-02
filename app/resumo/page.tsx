@@ -5,45 +5,11 @@ import { TrendingUp, TrendingDown, PiggyBank, Flame, Sparkles, ArrowRight } from
 import KPICard from '@/components/KPICard'
 import { useData } from '@/lib/store'
 import { fmt } from '@/lib/format'
-import { AnalyzedTransaction } from '@/lib/types'
+import { computeSummary } from '@/lib/finance-summary'
 
 export default function ResumoPage() {
   const { data } = useData()
-
-  const s = useMemo(() => {
-    const analyzed = data?.analyzed ?? []
-    const holerites = data?.holerites ?? []
-    if (analyzed.length === 0 && holerites.length === 0) return null
-
-    const entradas = analyzed.filter((t) => t.amount > 0)
-    const saidas = analyzed.filter((t) => t.amount < 0)
-
-    const holeriteLiquido = holerites.reduce((a, h) => a + (h.liquido || 0), 0)
-    const rendaFixaExtrato = entradas.filter((t) => t.recurring).reduce((a, t) => a + t.amount, 0)
-    // Holerite é a fonte autoritativa da renda fixa; havendo holerite, usa ele
-    // pra não contar o salário duas vezes (holerite + depósito no extrato).
-    const rendaFixa = holerites.length > 0 ? holeriteLiquido : rendaFixaExtrato
-    const rendaVariavel = entradas.filter((t) => !t.recurring).reduce((a, t) => a + t.amount, 0)
-    const renda = rendaFixa + rendaVariavel
-
-    const gastos = saidas.reduce((a, t) => a + Math.abs(t.amount), 0)
-    const sobrou = renda - gastos
-    const besteira = saidas.filter((t) => t.level === 'superfluo').reduce((a, t) => a + Math.abs(t.amount), 0)
-
-    // Gasto por categoria → maior fuga
-    const porCategoria = new Map<string, number>()
-    for (const t of saidas) porCategoria.set(t.category, (porCategoria.get(t.category) ?? 0) + Math.abs(t.amount))
-    const categorias = [...porCategoria.entries()].sort((a, b) => b[1] - a[1])
-    const maiorFuga = categorias[0]
-
-    // Assinaturas recorrentes (gasto que repete)
-    const assinaturas = saidas.filter((t) => t.recurring).reduce((a, t) => a + Math.abs(t.amount), 0)
-
-    const datas = analyzed.map((t) => t.date).filter((d) => /^\d{4}-\d{2}-\d{2}/.test(d)).sort()
-    const periodo = datas.length ? `${br(datas[0])} – ${br(datas[datas.length - 1])}` : null
-
-    return { renda, rendaFixa, rendaVariavel, gastos, sobrou, besteira, assinaturas, categorias, maiorFuga, periodo, total: analyzed.length }
-  }, [data?.analyzed, data?.holerites])
+  const s = useMemo(() => computeSummary(data), [data?.analyzed, data?.holerites])
 
   return (
     <div className="px-4 md:px-8 py-6 max-w-5xl mx-auto">
@@ -174,10 +140,4 @@ function EmptyState() {
       </Link>
     </div>
   )
-}
-
-// "2026-03-27" → "27/03"
-function br(iso: string): string {
-  const [, m, d] = iso.split('-')
-  return `${d}/${m}`
 }
