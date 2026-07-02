@@ -2,13 +2,14 @@
 import { useMemo } from 'react'
 import Link from 'next/link'
 import { PiggyBank, Target, Shield, ArrowRight, Sparkles } from 'lucide-react'
+import MonthSelector from '@/components/MonthSelector'
 import { useData } from '@/lib/store'
 import { fmt } from '@/lib/format'
 import { computeSummary } from '@/lib/finance-summary'
 
 export default function InvestirPage() {
-  const { data } = useData()
-  const s = useMemo(() => computeSummary(data), [data?.analyzed, data?.holerites])
+  const { data, currentMonth } = useData()
+  const s = useMemo(() => computeSummary(data, currentMonth), [data?.analyzed, data?.holerites, data?.transactions, currentMonth])
 
   const investido = useMemo(
     () => (data?.investments ?? []).reduce((a, i) => a + i.value, 0),
@@ -40,8 +41,13 @@ export default function InvestirPage() {
 
   return (
     <div className="px-4 md:px-8 py-6 max-w-5xl mx-auto">
-      <h1 className="text-xl font-semibold mb-1">Investir</h1>
-      <p className="text-[#7070a0] text-sm mb-6">Quanto sobra e o que fazer com isso{s.periodo ? ` · ${s.periodo}` : ''}.</p>
+      <div className="flex items-center justify-between mb-5">
+        <div>
+          <h1 className="text-xl font-semibold mb-1">Investir</h1>
+          <p className="text-[#7070a0] text-sm">Quanto sobra e o que fazer com isso.</p>
+        </div>
+        <MonthSelector />
+      </div>
 
       {/* Sobrou / sugestão */}
       <div className="rounded-2xl p-5 border mb-6" style={{ background: s.sobrou >= 0 ? 'rgba(0,229,170,0.06)' : 'rgba(255,51,102,0.06)', borderColor: s.sobrou >= 0 ? 'rgba(0,229,170,0.25)' : 'rgba(255,51,102,0.25)' }}>

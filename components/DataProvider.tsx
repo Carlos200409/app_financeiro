@@ -4,6 +4,7 @@ import type { Session } from '@supabase/supabase-js'
 import { DataContext, saveData, getCurrentMonth } from '@/lib/store'
 import { FinanceData, MonthKey, MONTHS } from '@/lib/types'
 import { supabase, TABLE, ROW_ID } from '@/lib/supabase'
+import { monthsWithData } from '@/lib/finance-summary'
 import Login from './Login'
 
 const emptyData: FinanceData = {
@@ -45,6 +46,7 @@ export default function DataProvider({ children }: { children: ReactNode }) {
   const [authReady, setAuthReady] = useState(false)
   const [ready, setReady] = useState(false)
   const isSaving = useRef(false)
+  const monthInit = useRef(false)
 
   // Autenticação: sem sessão → tela de login. RLS no Supabase só libera dados
   // pra quem está logado, então nada carrega sem sessão.
@@ -66,6 +68,12 @@ export default function DataProvider({ children }: { children: ReactNode }) {
       setDataState(finalData)
       saveData(finalData)
       if (!remoteData) saveToSupabase(emptyData)
+      // Abre no último mês que tem dados (não no mês atual vazio).
+      if (!monthInit.current) {
+        const meses = monthsWithData(finalData)
+        if (meses.length > 0) setCurrentMonth(meses[meses.length - 1])
+        monthInit.current = true
+      }
       setReady(true)
     })
 

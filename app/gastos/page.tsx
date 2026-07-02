@@ -2,6 +2,7 @@
 import { useMemo } from 'react'
 import Link from 'next/link'
 import { CreditCard, Repeat, ArrowRight, Sparkles } from 'lucide-react'
+import MonthSelector from '@/components/MonthSelector'
 import { useData } from '@/lib/store'
 import { fmt } from '@/lib/format'
 import { computeSummary } from '@/lib/finance-summary'
@@ -13,8 +14,8 @@ const LEVEL = {
 }
 
 export default function GastosPage() {
-  const { data } = useData()
-  const s = useMemo(() => computeSummary(data), [data?.analyzed, data?.holerites])
+  const { data, currentMonth } = useData()
+  const s = useMemo(() => computeSummary(data, currentMonth), [data?.analyzed, data?.holerites, data?.transactions, currentMonth])
 
   const assinaturas = useMemo(
     () => (data?.analyzed ?? []).filter((t) => t.amount < 0 && t.recurring),
@@ -27,10 +28,13 @@ export default function GastosPage() {
 
   return (
     <div className="px-4 md:px-8 py-6 max-w-5xl mx-auto">
-      <h1 className="text-xl font-semibold mb-1">Gastos</h1>
-      <p className="text-[#7070a0] text-sm mb-6">
-        Pra onde vai seu dinheiro{s?.periodo ? ` · ${s.periodo}` : ''}.
-      </p>
+      <div className="flex items-center justify-between mb-5">
+        <div>
+          <h1 className="text-xl font-semibold mb-1">Gastos</h1>
+          <p className="text-[#7070a0] text-sm">Pra onde vai seu dinheiro.</p>
+        </div>
+        <MonthSelector />
+      </div>
 
       {!s?.temDados && parcelas.length === 0 ? (
         <EmptyState />

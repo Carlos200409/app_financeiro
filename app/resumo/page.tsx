@@ -3,20 +3,24 @@ import { useMemo } from 'react'
 import Link from 'next/link'
 import { TrendingUp, TrendingDown, PiggyBank, Flame, Sparkles, ArrowRight } from 'lucide-react'
 import KPICard from '@/components/KPICard'
+import MonthSelector from '@/components/MonthSelector'
 import { useData } from '@/lib/store'
 import { fmt } from '@/lib/format'
 import { computeSummary } from '@/lib/finance-summary'
 
 export default function ResumoPage() {
-  const { data } = useData()
-  const s = useMemo(() => computeSummary(data), [data?.analyzed, data?.holerites])
+  const { data, currentMonth } = useData()
+  const s = useMemo(() => computeSummary(data, currentMonth), [data?.analyzed, data?.holerites, data?.transactions, currentMonth])
 
   return (
     <div className="px-4 md:px-8 py-6 max-w-5xl mx-auto">
-      <h1 className="text-xl font-semibold mb-1">Resumo</h1>
-      <p className="text-[#7070a0] text-sm mb-6">
-        Sua situação em um olhada{s?.periodo ? ` · ${s.periodo}` : ''}.
-      </p>
+      <div className="flex items-center justify-between mb-5">
+        <div>
+          <h1 className="text-xl font-semibold mb-1">Resumo</h1>
+          <p className="text-[#7070a0] text-sm">Sua situação em um olhada.</p>
+        </div>
+        <MonthSelector />
+      </div>
 
       {!s ? (
         <EmptyState />
