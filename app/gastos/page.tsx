@@ -32,11 +32,11 @@ export default function GastosPage() {
         Pra onde vai seu dinheiro{s?.periodo ? ` · ${s.periodo}` : ''}.
       </p>
 
-      {!s?.temExtrato && parcelas.length === 0 ? (
+      {!s?.temDados && parcelas.length === 0 ? (
         <EmptyState />
       ) : (
         <>
-          {s && s.temExtrato && (
+          {s && s.temDados && (
           <>
           {/* Total + níveis */}
           <div className="bg-[#141424] border border-[#1a1a2e] rounded-2xl p-5 mb-6">
