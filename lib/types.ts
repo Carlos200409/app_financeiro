@@ -41,16 +41,25 @@ export interface MonthSummary {
 
 export type SpendingLevel = 'essencial' | 'util' | 'superfluo'
 
-// Transação de extrato bancário categorizada pela IA. Fica salva no FinanceData
-// pra nunca re-chamar a API sobre os mesmos dados (custo baixo).
+// Transação de extrato categorizada pela IA. Editável pelo usuário.
 export interface AnalyzedTransaction {
+  id: string
   date: string // ISO YYYY-MM-DD quando dá; senão texto original
   description: string
   amount: number // negativo = saída, positivo = entrada
   category: string // categoria da IA (Alimentação, Transporte, Renda, ...)
   level: SpendingLevel
   reason: string
-  recurring: boolean // parece cobrança/renda mensal recorrente (salário, assinatura, aluguel)
+  recurring: boolean // cobrança/renda mensal recorrente (salário, assinatura, aluguel)
+}
+
+// Um extrato/fatura importado = um grupo com itens. Ex: "Cartão Bradesco".
+// A IA monta o rascunho; o usuário edita nome/valor/categoria de cada item.
+export interface ImportGroup {
+  id: string
+  source: string // "Cartão Bradesco", "Nubank", "Extrato", ...
+  importedAt: string
+  transactions: AnalyzedTransaction[]
 }
 
 // Holerite lido por foto (Claude vision). Vira renda fixa no Resumo.
@@ -72,7 +81,8 @@ export interface FinanceData {
   investments: Investment[]
   monthlySummaries: MonthSummary[]
   importedAt: string
-  analyzed?: AnalyzedTransaction[] // resultado da última análise de extrato pela IA
+  analyzed?: AnalyzedTransaction[] // legado: última análise solta (migrado p/ imports)
+  imports?: ImportGroup[] // extratos/faturas importados, agrupados e editáveis
   insights?: string[] // insights da IA sobre onde economizar
   holerites?: Holerite[] // holerites lidos por foto (renda fixa)
 }

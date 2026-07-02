@@ -47,8 +47,12 @@ const SCHEMA = {
       items: { type: 'string' },
       description: '3 a 5 frases diretas: onde está vazando dinheiro e como sobraria mais',
     },
+    source: {
+      type: 'string',
+      description: 'origem do extrato (banco/cartão), ex "Nubank", "Cartão Bradesco". "Extrato" se não der pra saber.',
+    },
   },
-  required: ['items', 'insights'],
+  required: ['items', 'insights', 'source'],
 }
 
 const SYSTEM = `Você é um analista financeiro pessoal brasileiro, direto e honesto.
@@ -131,7 +135,7 @@ export async function POST(request: Request) {
       recurring: byIndex.get(i)?.recurring ?? false,
     }))
 
-    return Response.json({ transactions: result, insights: parsed.insights ?? [] })
+    return Response.json({ transactions: result, insights: parsed.insights ?? [], source: parsed.source || 'Extrato' })
   } catch (e) {
     if (e instanceof Anthropic.AuthenticationError) {
       return Response.json({ error: 'API key do Claude inválida. Confira o .env.local.' }, { status: 401 })

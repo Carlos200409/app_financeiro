@@ -15,11 +15,11 @@ const LEVEL = {
 
 export default function GastosPage() {
   const { data, currentMonth } = useData()
-  const s = useMemo(() => computeSummary(data, currentMonth), [data?.analyzed, data?.holerites, data?.transactions, currentMonth])
+  const s = useMemo(() => computeSummary(data, currentMonth), [data?.analyzed, data?.imports, data?.holerites, data?.transactions, currentMonth])
 
   const assinaturas = useMemo(
-    () => (data?.analyzed ?? []).filter((t) => t.amount < 0 && t.recurring),
-    [data?.analyzed],
+    () => [...(data?.imports ?? []).flatMap((g) => g.transactions), ...(data?.analyzed ?? [])].filter((t) => t.amount < 0 && t.recurring),
+    [data?.imports, data?.analyzed],
   )
   const parcelas = useMemo(
     () => (data?.installments ?? []).filter((p) => p.status === 'ATIVO'),

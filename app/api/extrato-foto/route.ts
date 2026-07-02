@@ -38,8 +38,9 @@ const SCHEMA = {
       },
     },
     insights: { type: 'array', items: { type: 'string' } },
+    source: { type: 'string', description: 'origem (banco/cartão) do cabeçalho, ex "Cartão Bradesco", "Nubank". "Extrato" se não achar.' },
   },
-  required: ['ehExtrato', 'transactions', 'insights'],
+  required: ['ehExtrato', 'transactions', 'insights', 'source'],
 }
 
 const SYSTEM = `Você lê extratos bancários, faturas de cartão, recibos e notas fiscais a partir de FOTO ou PDF.
@@ -95,7 +96,7 @@ export async function POST(request: Request) {
       return Response.json({ error: 'Não achei transações nessa imagem/PDF. Tenta uma foto mais nítida do extrato.' }, { status: 422 })
     }
 
-    return Response.json({ transactions: parsed.transactions, insights: parsed.insights ?? [] })
+    return Response.json({ transactions: parsed.transactions, insights: parsed.insights ?? [], source: parsed.source || 'Extrato' })
   } catch (e) {
     if (e instanceof Anthropic.AuthenticationError) {
       return Response.json({ error: 'API key do Claude inválida.' }, { status: 401 })
