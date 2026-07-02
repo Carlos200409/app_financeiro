@@ -51,21 +51,34 @@ export default function AnalisePage() {
       const payload = await res.json()
       if (!res.ok) { setError(payload.error ?? 'Erro ao ler.'); return }
       applyResult(payload)
-    } catch { setError('Falha ao processar o arquivo.') } finally { setLoading(false) }
+    } catch {
+      setError('Não consegui ler essa imagem. Se for foto do iPhone (HEIC), salva como JPG ou tira um print e tenta de novo.')
+    } finally { setLoading(false) }
   }, [applyResult])
 
   const handleExtrato = useCallback(async (file: File) => {
     setError(null)
     try {
-      if (/\.(csv|ofx|txt|qfx)$/i.test(file.name) || /text|csv/.test(file.type)) {
-        const text = await file.text()
-        const parsed = parseExtrato(text)
+      const nome = file.name.toLowerCase()
+      if (/\.(csv|ofx|txt|qfx)$/i.test(nome) || /text|csv/.test(file.type)) {
+        const parsed = parseExtrato(await file.text())
         if (!parsed.length) { setError('Não achei transações. É CSV/OFX? Se for foto/PDF, funciona também.'); return }
         analyze(parsed)
+      } else if (/\.(xlsx|xls)$/i.test(nome) || /sheet|excel/.test(file.type)) {
+        // Excel → converte pra CSV com a lib xlsx e usa o mesmo parser.
+        const XLSX = await import('xlsx')
+        const wb = XLSX.read(await file.arrayBuffer())
+        const csv = XLSX.utils.sheet_to_csv(wb.Sheets[wb.SheetNames[0]])
+        const parsed = parseExtrato(csv)
+        if (!parsed.length) { setError('Não achei transações nessa planilha. Confere se tem colunas de data, descrição e valor.'); return }
+        analyze(parsed)
       } else {
+        // PDF ou imagem → visão.
         analyzeFoto(file)
       }
-    } catch { setError('Não consegui abrir esse arquivo.') }
+    } catch {
+      setError('Não consegui abrir esse arquivo. Se for foto do iPhone (HEIC), tenta salvar como JPG ou tirar um print.')
+    }
   }, [analyze, analyzeFoto])
 
   const handleHolerite = useCallback(async (file: File) => {
@@ -98,9 +111,9 @@ export default function AnalisePage() {
 
       {!loading && (
         mode === 'extrato' ? (
-          <UploadBox accept=".csv,.ofx,.txt,.pdf,image/*" onFile={handleExtrato} title="Escolher extrato ou fatura" hint="CSV, OFX, PDF ou foto (extrato / fatura / nota)" />
+          <UploadBox onFile={handleExtrato} title="Escolher extrato ou fatura" hint="CSV, OFX, PDF ou foto (extrato / fatura / nota)" />
         ) : (
-          <UploadBox accept="image/*" onFile={handleHolerite} title="Foto do holerite" hint="Contracheque — pode estar torto, a IA lê" />
+          <UploadBox onFile={handleHolerite} title="Foto do holerite" hint="Contracheque — pode estar torto, a IA lê" />
         )
       )}
 
@@ -145,12 +158,13 @@ function ModeButton({ active, onClick, icon: Icon, label }: { active: boolean; o
   )
 }
 
-function UploadBox({ accept, onFile, title, hint }: { accept: string; onFile: (f: File) => void; title: string; hint: string }) {
+function UploadBox({ onFile, title, hint }: { onFile: (f: File) => void; title: string; hint: string }) {
+  // Sem "accept": bancos exportam formatos variados (e o filtro apagava os
+  // arquivos no seletor). O código roteia por tipo depois. */
   return (
     <label className="block border-2 border-dashed border-[#1a1a2e] rounded-2xl p-10 text-center cursor-pointer hover:border-[#4d8dff]/50 transition-colors">
       <input
         type="file"
-        accept={accept}
         className="hidden"
         onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); e.target.value = '' }}
       />
