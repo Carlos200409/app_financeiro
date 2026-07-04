@@ -13,21 +13,6 @@ export function saveData(data: FinanceData) {
   }
 }
 
-export function loadData(): FinanceData | null {
-  if (typeof window === 'undefined') return null
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    return raw ? JSON.parse(raw) : null
-  } catch {
-    return null
-  }
-}
-
-export function clearData() {
-  if (typeof window === 'undefined') return
-  localStorage.removeItem(STORAGE_KEY)
-}
-
 export function getCurrentMonth(): MonthKey {
   const idx = new Date().getMonth()
   return MONTHS[idx]

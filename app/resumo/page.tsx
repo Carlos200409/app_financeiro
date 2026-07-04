@@ -1,8 +1,8 @@
 'use client'
 import { useMemo } from 'react'
-import Link from 'next/link'
-import { TrendingUp, TrendingDown, PiggyBank, Flame, Sparkles, ArrowRight } from 'lucide-react'
+import { TrendingUp, TrendingDown, PiggyBank, Flame, Sparkles } from 'lucide-react'
 import KPICard from '@/components/KPICard'
+import EmptyCTA from '@/components/EmptyCTA'
 import MonthSelector from '@/components/MonthSelector'
 import { useData } from '@/lib/store'
 import { fmt } from '@/lib/format'
@@ -10,7 +10,7 @@ import { computeSummary } from '@/lib/finance-summary'
 
 export default function ResumoPage() {
   const { data, currentMonth } = useData()
-  const s = useMemo(() => computeSummary(data, currentMonth), [data?.analyzed, data?.imports, data?.holerites, data?.transactions, currentMonth])
+  const s = useMemo(() => computeSummary(data, currentMonth), [data?.imports, data?.holerites, data?.transactions, currentMonth])
 
   return (
     <div className="px-4 md:px-8 py-6 max-w-5xl mx-auto">
@@ -23,7 +23,10 @@ export default function ResumoPage() {
       </div>
 
       {!s ? (
-        <EmptyState />
+        <EmptyCTA
+          title="Ainda não analisei nenhum extrato"
+          text="Suba o extrato do banco que eu monto seu resumo — onde gasta, quanto sobra e o que cortar."
+        />
       ) : (
         <>
           {/* Veredito — o payoff */}
@@ -124,24 +127,6 @@ function Verdict({ sobrou, besteira, maiorFuga }: { sobrou: number; besteira: nu
           <p>Cortando as besteiras, sobraria <span className="text-white font-medium">+{fmt(besteira)}</span>{verde ? '' : ' — quase fechando a conta'}.</p>
         )}
       </div>
-    </div>
-  )
-}
-
-function EmptyState() {
-  return (
-    <div className="bg-[#141424] border border-[#1a1a2e] rounded-2xl p-8 text-center">
-      <Sparkles className="w-8 h-8 text-[#4d8dff] mx-auto mb-3" />
-      <p className="font-medium">Ainda não analisei nenhum extrato</p>
-      <p className="text-[#7070a0] text-sm mt-1 mb-4">
-        Suba o extrato do banco que eu monto seu resumo — onde gasta, quanto sobra e o que cortar.
-      </p>
-      <Link
-        href="/analise"
-        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#4d8dff] text-white text-sm font-medium hover:bg-[#3d7dee] transition-colors"
-      >
-        Analisar extrato <ArrowRight className="w-4 h-4" />
-      </Link>
     </div>
   )
 }

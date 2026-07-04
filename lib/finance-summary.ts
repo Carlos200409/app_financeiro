@@ -57,10 +57,7 @@ function buildEntries(data: FinanceData | null): Entry[] {
       month: (t.month as MonthKey) ?? null,
     })
   }
-  const analisadas = [
-    ...(data?.imports ?? []).flatMap((g) => g.transactions),
-    ...(data?.analyzed ?? []), // legado
-  ]
+  const analisadas = (data?.imports ?? []).flatMap((g) => g.transactions)
   for (const t of analisadas) {
     entries.push({ amount: t.amount, category: t.category, level: t.level, recurring: t.recurring, month: monthFromDate(t.date) })
   }

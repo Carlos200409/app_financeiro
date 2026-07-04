@@ -1,9 +1,8 @@
-import Anthropic from '@anthropic-ai/sdk'
-import { isAuthenticated } from '@/lib/auth-guard'
+import { withClaude } from '@/lib/claude-route'
 
 // Lê holerite por foto com Claude vision. Devolve estruturado: competência,
-// tipo (adiantamento/fechamento), bruto, descontos, líquido. A key fica só aqui
-// no servidor. 1 foto por mês → custo em centavos.
+// tipo (adiantamento/fechamento), bruto, descontos, líquido. A key fica só no
+// servidor (withClaude). 1 foto por mês → custo em centavos.
 
 // Sonnet 4.6: meio-termo — bem mais barato que Opus e muito mais preciso que
 // Haiku (que alucinava em foto torta). Se algum holerite vier errado, o usuário
@@ -40,31 +39,21 @@ Regras:
 - Números em reais, use ponto decimal (2000.00, não "2.000,00").`
 
 export async function POST(request: Request) {
-  if (!(await isAuthenticated(request))) {
-    return Response.json({ error: 'Faça login para usar a IA.' }, { status: 401 })
-  }
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) {
-    return Response.json({ error: 'ANTHROPIC_API_KEY não configurada.' }, { status: 500 })
-  }
+  return withClaude(request, async (client) => {
+    let image: string
+    let mediaType: string
+    try {
+      const body = await request.json()
+      image = body.image // base64 sem o prefixo data:
+      mediaType = body.mediaType ?? 'image/jpeg'
+    } catch {
+      return Response.json({ error: 'Requisição inválida.' }, { status: 400 })
+    }
 
-  let image: string
-  let mediaType: string
-  try {
-    const body = await request.json()
-    image = body.image // base64 sem o prefixo data:
-    mediaType = body.mediaType ?? 'image/jpeg'
-  } catch {
-    return Response.json({ error: 'Requisição inválida.' }, { status: 400 })
-  }
+    if (!image) {
+      return Response.json({ error: 'Nenhuma imagem enviada.' }, { status: 400 })
+    }
 
-  if (!image) {
-    return Response.json({ error: 'Nenhuma imagem enviada.' }, { status: 400 })
-  }
-
-  const client = new Anthropic({ apiKey })
-
-  try {
     const message = await client.messages.create({
       model: MODEL,
       max_tokens: 1024,
@@ -92,15 +81,5 @@ export async function POST(request: Request) {
     }
 
     return Response.json({ holerite: parsed })
-  } catch (e) {
-    if (e instanceof Anthropic.AuthenticationError) {
-      return Response.json({ error: 'API key do Claude inválida.' }, { status: 401 })
-    }
-    const msg = e instanceof Error ? e.message : String(e)
-    if (/credit balance is too low/i.test(msg)) {
-      return Response.json({ error: 'Os créditos da API do Claude acabaram. Adicione em console.anthropic.com → Billing e tente de novo.' }, { status: 402 })
-    }
-    console.error('holerite error', e)
-    return Response.json({ error: 'Erro ao ler o holerite. Tenta de novo.' }, { status: 500 })
-  }
+  })
 }

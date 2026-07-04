@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { Plus, X, TrendingUp, TrendingDown, CreditCard, PiggyBank } from 'lucide-react'
-import { useData, saveData } from '@/lib/store'
+import { useData } from '@/lib/store'
 import { Transaction, Installment, Investment } from '@/lib/types'
 import TransactionModal from './TransactionModal'
 
@@ -156,14 +156,11 @@ function ParcelaModal({ onSave, onClose }: { onSave: (i: Omit<Installment, 'id'>
     if (!desc.trim()) return
     onSave({
       description: desc.trim(),
-      total: pv * t,
-      installmentAmount: pv * p,
       valuePerInstallment: pv,
       totalInstallments: t,
       status: 'ATIVO',
       paid: p,
       remaining: t - p,
-      advance: false,
     })
   }
   return (

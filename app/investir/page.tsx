@@ -1,7 +1,7 @@
 'use client'
 import { useMemo } from 'react'
-import Link from 'next/link'
-import { PiggyBank, Target, Shield, ArrowRight, Sparkles } from 'lucide-react'
+import { PiggyBank, Target, Shield } from 'lucide-react'
+import EmptyCTA from '@/components/EmptyCTA'
 import MonthSelector from '@/components/MonthSelector'
 import { useData } from '@/lib/store'
 import { fmt } from '@/lib/format'
@@ -9,7 +9,7 @@ import { computeSummary } from '@/lib/finance-summary'
 
 export default function InvestirPage() {
   const { data, currentMonth } = useData()
-  const s = useMemo(() => computeSummary(data, currentMonth), [data?.analyzed, data?.imports, data?.holerites, data?.transactions, currentMonth])
+  const s = useMemo(() => computeSummary(data, currentMonth), [data?.imports, data?.holerites, data?.transactions, currentMonth])
 
   const investido = useMemo(
     () => (data?.investments ?? []).reduce((a, i) => a + i.value, 0),
@@ -27,14 +27,11 @@ export default function InvestirPage() {
       <div className="px-4 md:px-8 py-6 max-w-5xl mx-auto">
         <h1 className="text-xl font-semibold mb-1">Investir</h1>
         <p className="text-[#7070a0] text-sm mb-6">Quanto sobra e o que fazer com isso.</p>
-        <div className="bg-[#141424] border border-[#1a1a2e] rounded-2xl p-8 text-center">
-          <Sparkles className="w-8 h-8 text-[#4d8dff] mx-auto mb-3" />
-          <p className="font-medium">Ainda não sei quanto sobra</p>
-          <p className="text-[#7070a0] text-sm mt-1 mb-4">Sobe um holerite e um extrato que eu calculo sua sobra e a meta de reserva.</p>
-          <Link href="/analise" className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#4d8dff] text-white text-sm font-medium hover:bg-[#3d7dee] transition-colors">
-            Começar <ArrowRight className="w-4 h-4" />
-          </Link>
-        </div>
+        <EmptyCTA
+          title="Ainda não sei quanto sobra"
+          text="Sobe um holerite e um extrato que eu calculo sua sobra e a meta de reserva."
+          cta="Começar"
+        />
       </div>
     )
   }

@@ -1,19 +1,14 @@
-import Anthropic from '@anthropic-ai/sdk'
-import { isAuthenticated } from '@/lib/auth-guard'
+import { withClaude } from '@/lib/claude-route'
+import { CATEGORIES } from '@/lib/types'
 
 // Lê extrato/fatura/nota fiscal por FOTO ou PDF com Claude vision, extrai as
 // transações e já categoriza — devolve o mesmo formato de /api/analyze.
-// Usado quando o banco não dá CSV/OFX. A key fica só no servidor.
+// Usado quando o banco não dá CSV/OFX. A key fica só no servidor (withClaude).
 
 // Sonnet 4.6: meio-termo — mais barato que Opus, preciso o bastante pra ler
 // foto/PDF de extrato. Itens editáveis se algo vier errado.
 const MODEL = 'claude-sonnet-4-6'
 
-const CATEGORIES = [
-  'Alimentação', 'Supermercado', 'Transporte', 'Moradia', 'Saúde', 'Educação',
-  'Lazer', 'Assinaturas', 'Compras', 'Beleza', 'Investimento', 'Renda',
-  'Taxas/IOF', 'Transferência', 'Outros',
-] as const
 const LEVELS = ['essencial', 'util', 'superfluo'] as const
 
 const SCHEMA = {
@@ -56,30 +51,23 @@ const SYSTEM = `Você lê extratos bancários, faturas de cartão, recibos e not
 - Em "insights", 3 a 5 frases diretas de onde economizar. Valores em R$.`
 
 export async function POST(request: Request) {
-  if (!(await isAuthenticated(request))) {
-    return Response.json({ error: 'Faça login para usar a IA.' }, { status: 401 })
-  }
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) return Response.json({ error: 'ANTHROPIC_API_KEY não configurada.' }, { status: 500 })
+  return withClaude(request, async (client) => {
+    let data: string
+    let mediaType: string
+    try {
+      const body = await request.json()
+      data = body.data
+      mediaType = body.mediaType ?? 'image/jpeg'
+    } catch {
+      return Response.json({ error: 'Requisição inválida.' }, { status: 400 })
+    }
+    if (!data) return Response.json({ error: 'Nenhum arquivo enviado.' }, { status: 400 })
 
-  let data: string
-  let mediaType: string
-  try {
-    const body = await request.json()
-    data = body.data
-    mediaType = body.mediaType ?? 'image/jpeg'
-  } catch {
-    return Response.json({ error: 'Requisição inválida.' }, { status: 400 })
-  }
-  if (!data) return Response.json({ error: 'Nenhum arquivo enviado.' }, { status: 400 })
+    const isPdf = mediaType === 'application/pdf'
+    const fileBlock = isPdf
+      ? { type: 'document' as const, source: { type: 'base64' as const, media_type: 'application/pdf' as const, data } }
+      : { type: 'image' as const, source: { type: 'base64' as const, media_type: mediaType as 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif', data } }
 
-  const client = new Anthropic({ apiKey })
-  const isPdf = mediaType === 'application/pdf'
-  const fileBlock = isPdf
-    ? { type: 'document' as const, source: { type: 'base64' as const, media_type: 'application/pdf' as const, data } }
-    : { type: 'image' as const, source: { type: 'base64' as const, media_type: mediaType as 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif', data } }
-
-  try {
     const message = await client.messages.create({
       model: MODEL,
       max_tokens: 16000,
@@ -98,15 +86,5 @@ export async function POST(request: Request) {
     }
 
     return Response.json({ transactions: parsed.transactions, insights: parsed.insights ?? [], source: parsed.source || 'Extrato' })
-  } catch (e) {
-    if (e instanceof Anthropic.AuthenticationError) {
-      return Response.json({ error: 'API key do Claude inválida.' }, { status: 401 })
-    }
-    const msg = e instanceof Error ? e.message : String(e)
-    if (/credit balance is too low/i.test(msg)) {
-      return Response.json({ error: 'Os créditos da API do Claude acabaram. Adicione em console.anthropic.com → Billing e tente de novo.' }, { status: 402 })
-    }
-    console.error('extrato-foto error', e)
-    return Response.json({ error: 'Erro ao ler. Tenta de novo.' }, { status: 500 })
-  }
+  })
 }

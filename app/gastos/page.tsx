@@ -1,25 +1,20 @@
 'use client'
 import { useMemo } from 'react'
-import Link from 'next/link'
-import { CreditCard, Repeat, ArrowRight, Sparkles } from 'lucide-react'
+import { CreditCard, Repeat } from 'lucide-react'
+import EmptyCTA from '@/components/EmptyCTA'
 import MonthSelector from '@/components/MonthSelector'
 import { useData } from '@/lib/store'
 import { fmt } from '@/lib/format'
 import { computeSummary } from '@/lib/finance-summary'
-
-const LEVEL = {
-  essencial: { label: 'Essencial', color: '#4ade80' },
-  util: { label: 'Útil', color: '#fbbf24' },
-  superfluo: { label: 'Besteira', color: '#f87171' },
-}
+import { LEVEL_META as LEVEL } from '@/lib/types'
 
 export default function GastosPage() {
   const { data, currentMonth } = useData()
-  const s = useMemo(() => computeSummary(data, currentMonth), [data?.analyzed, data?.imports, data?.holerites, data?.transactions, currentMonth])
+  const s = useMemo(() => computeSummary(data, currentMonth), [data?.imports, data?.holerites, data?.transactions, currentMonth])
 
   const assinaturas = useMemo(
-    () => [...(data?.imports ?? []).flatMap((g) => g.transactions), ...(data?.analyzed ?? [])].filter((t) => t.amount < 0 && t.recurring),
-    [data?.imports, data?.analyzed],
+    () => (data?.imports ?? []).flatMap((g) => g.transactions).filter((t) => t.amount < 0 && t.recurring),
+    [data?.imports],
   )
   const parcelas = useMemo(
     () => (data?.installments ?? []).filter((p) => p.status === 'ATIVO'),
@@ -37,7 +32,7 @@ export default function GastosPage() {
       </div>
 
       {!s?.temDados && parcelas.length === 0 ? (
-        <EmptyState />
+        <EmptyCTA title="Sem gastos ainda" text="Sobe um extrato do banco que eu mostro pra onde vai cada real." />
       ) : (
         <>
           {s && s.temDados && (
@@ -138,18 +133,5 @@ function Legend({ color, label, value }: { color: string; label: string; value: 
       <span className="w-2 h-2 rounded-full" style={{ background: color }} />
       {label} <span className="text-white font-medium">{fmt(value)}</span>
     </span>
-  )
-}
-
-function EmptyState() {
-  return (
-    <div className="bg-[#141424] border border-[#1a1a2e] rounded-2xl p-8 text-center">
-      <Sparkles className="w-8 h-8 text-[#4d8dff] mx-auto mb-3" />
-      <p className="font-medium">Sem gastos ainda</p>
-      <p className="text-[#7070a0] text-sm mt-1 mb-4">Sobe um extrato do banco que eu mostro pra onde vai cada real.</p>
-      <Link href="/analise" className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#4d8dff] text-white text-sm font-medium hover:bg-[#3d7dee] transition-colors">
-        Analisar extrato <ArrowRight className="w-4 h-4" />
-      </Link>
-    </div>
   )
 }

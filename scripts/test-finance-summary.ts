@@ -7,7 +7,7 @@ const base: FinanceData = {
   transactions: [],
   installments: [],
   investments: [],
-  monthlySummaries: MONTHS.map((month) => ({ month, receita: 0, fixos: 0, extras: 0, investimentos: 0, saldo: 0 })),
+  monthlySummaries: MONTHS.map((month) => ({ month, receita: 0, fixos: 0, extras: 0, saldo: 0 })),
   importedAt: '2026-01-01T00:00:00Z',
 }
 

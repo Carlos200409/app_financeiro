@@ -14,14 +14,11 @@ export interface Transaction {
 export interface Installment {
   id: string
   description: string
-  total: number
-  installmentAmount: number
   valuePerInstallment: number
   totalInstallments: number
   status: 'ATIVO' | 'QUITADO'
   paid: number
   remaining: number
-  advance: boolean
 }
 
 export interface Investment {
@@ -35,11 +32,23 @@ export interface MonthSummary {
   receita: number
   fixos: number
   extras: number
-  investimentos: number
   saldo: number
 }
 
 export type SpendingLevel = 'essencial' | 'util' | 'superfluo'
+
+// Categorias da IA — fonte única (rotas /api e telas importam daqui).
+export const CATEGORIES = [
+  'Alimentação', 'Supermercado', 'Transporte', 'Moradia', 'Saúde', 'Educação',
+  'Lazer', 'Assinaturas', 'Compras', 'Beleza', 'Investimento', 'Renda',
+  'Taxas/IOF', 'Transferência', 'Outros',
+] as const
+
+export const LEVEL_META: Record<SpendingLevel, { label: string; color: string }> = {
+  essencial: { label: 'Essencial', color: '#4ade80' },
+  util: { label: 'Útil', color: '#fbbf24' },
+  superfluo: { label: 'Besteira', color: '#f87171' },
+}
 
 // Transação de extrato categorizada pela IA. Editável pelo usuário.
 export interface AnalyzedTransaction {
@@ -81,7 +90,6 @@ export interface FinanceData {
   investments: Investment[]
   monthlySummaries: MonthSummary[]
   importedAt: string
-  analyzed?: AnalyzedTransaction[] // legado: última análise solta (migrado p/ imports)
   imports?: ImportGroup[] // extratos/faturas importados, agrupados e editáveis
   insights?: string[] // insights da IA sobre onde economizar
   holerites?: Holerite[] // holerites lidos por foto (renda fixa)

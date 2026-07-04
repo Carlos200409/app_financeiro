@@ -1,20 +1,14 @@
-import Anthropic from '@anthropic-ai/sdk'
-import { isAuthenticated } from '@/lib/auth-guard'
+import { withClaude } from '@/lib/claude-route'
+import { CATEGORIES } from '@/lib/types'
 
 // O cérebro: recebe transações cruas → Claude categoriza e julga cada uma →
 // devolve categoria, nível (essencial/útil/supérfluo), motivo e insights de onde
-// dá pra sobrar. A API key fica SÓ aqui no servidor (process.env), nunca no front.
+// dá pra sobrar. A API key fica SÓ no servidor (via withClaude), nunca no front.
 
 // Sonnet 4.6: mesmo modelo das leituras de foto (consistência). Categorização de
 // texto é leve, então o custo segue baixo (centavos). Trocar por 'claude-haiku-4-5'
 // pra ficar ainda mais barato, ou 'claude-opus-4-8' pra julgamento mais fino.
 const MODEL = 'claude-sonnet-4-6'
-
-const CATEGORIES = [
-  'Alimentação', 'Supermercado', 'Transporte', 'Moradia', 'Saúde', 'Educação',
-  'Lazer', 'Assinaturas', 'Compras', 'Beleza', 'Investimento', 'Renda',
-  'Taxas/IOF', 'Transferência', 'Outros',
-] as const
 
 const LEVELS = ['essencial', 'util', 'superfluo'] as const
 
@@ -83,44 +77,31 @@ quais gastos supérfluos somam mais, e quanto daria pra sobrar cortando. Use val
 Seja direto como um amigo que entende de dinheiro — sem enrolação.`
 
 export async function POST(request: Request) {
-  if (!(await isAuthenticated(request))) {
-    return Response.json({ error: 'Faça login para usar a IA.' }, { status: 401 })
-  }
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) {
-    return Response.json(
-      { error: 'ANTHROPIC_API_KEY não configurada. Adicione a chave no .env.local.' },
-      { status: 500 },
-    )
-  }
+  return withClaude(request, async (client) => {
+    let transactions: RawTransaction[]
+    try {
+      const body = await request.json()
+      transactions = body.transactions
+    } catch {
+      return Response.json({ error: 'JSON inválido.' }, { status: 400 })
+    }
 
-  let transactions: RawTransaction[]
-  try {
-    const body = await request.json()
-    transactions = body.transactions
-  } catch {
-    return Response.json({ error: 'JSON inválido.' }, { status: 400 })
-  }
+    if (!Array.isArray(transactions) || transactions.length === 0) {
+      return Response.json({ error: 'Nenhuma transação enviada.' }, { status: 400 })
+    }
+    // ponytail: limite simples pra não estourar contexto/output num extrato gigante.
+    // Acima disso, o cliente deve quebrar em lotes (ainda não implementado).
+    if (transactions.length > 300) {
+      return Response.json(
+        { error: `Extrato com ${transactions.length} transações é grande demais por enquanto (máx 300). Filtre por período e tente de novo.` },
+        { status: 413 },
+      )
+    }
 
-  if (!Array.isArray(transactions) || transactions.length === 0) {
-    return Response.json({ error: 'Nenhuma transação enviada.' }, { status: 400 })
-  }
-  // ponytail: limite simples pra não estourar contexto/output num extrato gigante.
-  // Acima disso, o cliente deve quebrar em lotes (ainda não implementado).
-  if (transactions.length > 300) {
-    return Response.json(
-      { error: `Extrato com ${transactions.length} transações é grande demais por enquanto (máx 300). Filtre por período e tente de novo.` },
-      { status: 413 },
-    )
-  }
+    const list = transactions
+      .map((t, i) => `${i}. ${t.date} | ${t.description} | R$ ${t.amount.toFixed(2)}`)
+      .join('\n')
 
-  const client = new Anthropic({ apiKey })
-
-  const list = transactions
-    .map((t, i) => `${i}. ${t.date} | ${t.description} | R$ ${t.amount.toFixed(2)}`)
-    .join('\n')
-
-  try {
     const message = await client.messages.create({
       model: MODEL,
       max_tokens: 16000,
@@ -152,15 +133,5 @@ export async function POST(request: Request) {
     }))
 
     return Response.json({ transactions: result, insights: parsed.insights ?? [], source: parsed.source || 'Extrato' })
-  } catch (e) {
-    if (e instanceof Anthropic.AuthenticationError) {
-      return Response.json({ error: 'API key do Claude inválida. Confira o .env.local.' }, { status: 401 })
-    }
-    const msg = e instanceof Error ? e.message : String(e)
-    if (/credit balance is too low/i.test(msg)) {
-      return Response.json({ error: 'Os créditos da API do Claude acabaram. Adicione em console.anthropic.com → Billing e tente de novo.' }, { status: 402 })
-    }
-    console.error('analyze error', e)
-    return Response.json({ error: 'Erro ao analisar. Tente de novo.' }, { status: 500 })
-  }
+  })
 }

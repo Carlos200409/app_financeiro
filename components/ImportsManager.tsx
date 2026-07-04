@@ -3,19 +3,9 @@ import { useState } from 'react'
 import { ChevronDown, ChevronRight, Trash2, Repeat } from 'lucide-react'
 import { useData } from '@/lib/store'
 import { fmt } from '@/lib/format'
-import { ImportGroup } from '@/lib/types'
+import { CATEGORIES, LEVEL_META, ImportGroup, SpendingLevel } from '@/lib/types'
 
-const CATEGORIES = [
-  'Alimentação', 'Supermercado', 'Transporte', 'Moradia', 'Saúde', 'Educação',
-  'Lazer', 'Assinaturas', 'Compras', 'Beleza', 'Investimento', 'Renda',
-  'Taxas/IOF', 'Transferência', 'Outros',
-]
-
-const LEVELS: { v: 'essencial' | 'util' | 'superfluo'; label: string; color: string }[] = [
-  { v: 'essencial', label: 'Essencial', color: '#4ade80' },
-  { v: 'util', label: 'Útil', color: '#fbbf24' },
-  { v: 'superfluo', label: 'Besteira', color: '#f87171' },
-]
+const LEVELS = (Object.keys(LEVEL_META) as SpendingLevel[]).map((v) => ({ v, ...LEVEL_META[v] }))
 
 function groupTotal(g: ImportGroup): number {
   return g.transactions.filter((t) => t.amount < 0).reduce((a, t) => a + Math.abs(t.amount), 0)
@@ -88,7 +78,7 @@ export default function ImportsManager() {
                       </select>
                       <select
                         defaultValue={t.level}
-                        onChange={(e) => editItem(g.id, t.id, { level: e.target.value as 'essencial' | 'util' | 'superfluo' })}
+                        onChange={(e) => editItem(g.id, t.id, { level: e.target.value as SpendingLevel })}
                         className="bg-[#0d0d1a] border border-[#1a1a2e] rounded-lg text-xs px-2 py-1 outline-none"
                         style={{ color: LEVELS.find((l) => l.v === t.level)?.color ?? '#b0b0d0' }}
                       >
