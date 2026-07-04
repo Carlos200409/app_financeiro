@@ -1,7 +1,8 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, CreditCard, TrendingUp, BarChart3, Sparkles } from 'lucide-react'
+import { LayoutDashboard, CreditCard, TrendingUp, BarChart3, Sparkles, LogOut } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
 
 const NAV = [
   { href: '/resumo', icon: LayoutDashboard, label: 'Resumo' },
@@ -13,6 +14,10 @@ const NAV = [
 
 export default function Navigation() {
   const path = usePathname()
+  const sair = async () => {
+    await supabase.auth.signOut()
+    // O DataProvider detecta a sessão encerrada e mostra o Login.
+  }
 
   return (
     <>
@@ -43,6 +48,13 @@ export default function Navigation() {
             )
           })}
         </nav>
+        <button
+          onClick={sair}
+          className="mt-auto flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-[#7070a0] hover:text-white hover:bg-white/5 transition-all"
+        >
+          <LogOut className="w-4 h-4 shrink-0" />
+          Sair
+        </button>
       </aside>
 
       {/* Mobile bottom bar */}
@@ -54,9 +66,7 @@ export default function Navigation() {
               <Link
                 key={href}
                 href={href}
-                className={`flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl transition-all ${
-                  active ? 'text-[#4d8dff]' : 'text-[#5050708]'
-                }`}
+                className="flex flex-col items-center gap-1 px-2 py-1.5 rounded-xl transition-all"
                 style={{ color: active ? '#4d8dff' : '#505070' }}
               >
                 <Icon className="w-5 h-5" />
@@ -64,6 +74,10 @@ export default function Navigation() {
               </Link>
             )
           })}
+          <button onClick={sair} className="flex flex-col items-center gap-1 px-2 py-1.5" style={{ color: '#505070' }}>
+            <LogOut className="w-5 h-5" />
+            <span className="text-[10px] font-medium">Sair</span>
+          </button>
         </div>
       </nav>
     </>

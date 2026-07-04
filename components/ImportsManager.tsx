@@ -17,6 +17,8 @@ export default function ImportsManager() {
   const { data, setData } = useData()
   const imports = data?.imports ?? []
   const [open, setOpen] = useState<Set<string>>(new Set())
+  // Flash verde de "salvou" na linha editada — feedback sem modal.
+  const [flash, setFlash] = useState<string | null>(null)
 
   if (!data || imports.length === 0) return null
 
@@ -26,17 +28,25 @@ export default function ImportsManager() {
     setData((prev) => ({ ...prev, imports: fn(prev.imports ?? []) }))
   const toggle = (id: string) => setOpen((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n })
 
-  const editItem = (gid: string, tid: string, patch: Partial<ImportGroup['transactions'][number]>) =>
+  const editItem = (gid: string, tid: string, patch: Partial<ImportGroup['transactions'][number]>) => {
     commit((prev) => prev.map((g) => g.id === gid ? { ...g, transactions: g.transactions.map((t) => t.id === tid ? { ...t, ...patch } : t) } : g))
-  const deleteItem = (gid: string, tid: string) =>
+    setFlash(tid)
+    setTimeout(() => setFlash((f) => (f === tid ? null : f)), 900)
+  }
+  const deleteItem = (gid: string, tid: string) => {
+    if (!confirm('Apagar este item?')) return
     commit((prev) => prev.map((g) => g.id === gid ? { ...g, transactions: g.transactions.filter((t) => t.id !== tid) } : g))
+  }
   const renameGroup = (gid: string, source: string) =>
     commit((prev) => prev.map((g) => g.id === gid ? { ...g, source } : g))
-  const deleteGroup = (gid: string) => commit((prev) => prev.filter((g) => g.id !== gid))
+  const deleteGroup = (gid: string, source: string) => {
+    if (!confirm(`Apagar "${source}" inteiro? Todos os itens somem.`)) return
+    commit((prev) => prev.filter((g) => g.id !== gid))
+  }
 
   return (
     <div className="mt-8">
-      <h2 className="text-sm font-semibold mb-3 text-[#7070a0]">Seus extratos ({imports.length})</h2>
+      <h2 className="text-sm font-semibold mb-3 text-[#7070a0]">Seus extratos e faturas ({imports.length})</h2>
       <div className="space-y-3">
         {[...imports].reverse().map((g) => {
           const aberto = open.has(g.id)
@@ -54,7 +64,7 @@ export default function ImportsManager() {
                 />
                 <span className="text-xs text-[#505070] shrink-0">{g.transactions.length} itens</span>
                 <span className="text-sm font-semibold text-white shrink-0">{fmt(groupTotal(g))}</span>
-                <button onClick={() => deleteGroup(g.id)} className="text-[#505070] hover:text-[#f87171] shrink-0" title="Apagar extrato">
+                <button onClick={() => deleteGroup(g.id, g.source)} className="text-[#505070] hover:text-[#f87171] shrink-0" title="Apagar extrato">
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
@@ -63,11 +73,14 @@ export default function ImportsManager() {
               {aberto && (
                 <div className="border-t border-[#1a1a2e] divide-y divide-[#1a1a2e]/60">
                   {g.transactions.map((t) => (
-                    <div key={t.id} className="px-4 py-2.5 flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                    <div
+                      key={t.id}
+                      className={`px-4 py-2.5 flex items-center gap-2 flex-wrap sm:flex-nowrap transition-colors duration-500 ${flash === t.id ? 'bg-[#4ade80]/10' : ''}`}
+                    >
                       <input
                         defaultValue={t.description}
                         onBlur={(e) => { const v = e.target.value; if (v !== t.description) editItem(g.id, t.id, { description: v }) }}
-                        className="bg-transparent text-sm text-white outline-none flex-1 min-w-[120px] focus:bg-[#0d0d1a] rounded px-1 py-0.5"
+                        className="bg-transparent text-sm text-white outline-none w-full sm:w-auto sm:flex-1 focus:bg-[#0d0d1a] rounded px-1 py-0.5"
                       />
                       <select
                         defaultValue={t.category}

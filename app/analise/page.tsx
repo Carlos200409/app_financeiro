@@ -1,18 +1,19 @@
 'use client'
 import { useState, useCallback } from 'react'
-import { Upload, Loader2, Sparkles, AlertTriangle, FileText, Camera, CheckCircle2 } from 'lucide-react'
+import Link from 'next/link'
+import { Upload, Loader2, Sparkles, AlertTriangle, FileText, Camera, CheckCircle2, ArrowRight } from 'lucide-react'
 import { parseExtrato, RawTransaction } from '@/lib/extrato-parser'
 import { fileToScaledBase64, fileToBase64 } from '@/lib/image'
 import { authHeaders } from '@/lib/api'
 import { fmt } from '@/lib/format'
 import { useData } from '@/lib/store'
-import { AnalyzedTransaction, Holerite, ImportGroup } from '@/lib/types'
+import { AnalyzedTransaction, Holerite, ImportGroup, MONTHS } from '@/lib/types'
 import ImportsManager from '@/components/ImportsManager'
 
 type Mode = 'extrato' | 'holerite'
 
 export default function AnalisePage() {
-  const { setData } = useData()
+  const { setData, setCurrentMonth } = useData()
   const [mode, setMode] = useState<Mode>('extrato')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -29,8 +30,15 @@ export default function AnalisePage() {
     const source = payload.source || 'Extrato'
     const group: ImportGroup = { id: `imp_${base}`, source, importedAt: new Date().toISOString(), transactions }
     setData((prev) => ({ ...prev, imports: [...(prev.imports ?? []), group], insights: payload.insights ?? prev.insights }))
+    // Pula pro mês dos dados importados — senão o Resumo abre no mês de hoje
+    // (vazio) e parece que o import não funcionou.
+    const meses = transactions
+      .map((t) => t.date.match(/^\d{4}-(\d{2})/)?.[1])
+      .filter((m): m is string => !!m)
+      .sort()
+    if (meses.length) setCurrentMonth(MONTHS[parseInt(meses[meses.length - 1], 10) - 1])
     setImported(source)
-  }, [setData])
+  }, [setData, setCurrentMonth])
 
   const analyze = useCallback(async (raw: RawTransaction[]) => {
     if (!raw.length) { setError('Não achei transações nesse arquivo. É mesmo CSV/OFX?'); return }
@@ -133,8 +141,11 @@ export default function AnalisePage() {
       )}
 
       {imported && !loading && (
-        <div className="flex items-center gap-2 bg-[#4ade80]/10 border border-[#4ade80]/30 rounded-xl p-3 mt-4 text-sm text-[#4ade80]">
+        <div className="flex items-center gap-2 flex-wrap bg-[#4ade80]/10 border border-[#4ade80]/30 rounded-xl p-3 mt-4 text-sm text-[#4ade80]">
           <CheckCircle2 className="w-4 h-4 shrink-0" /> &ldquo;{imported}&rdquo; importado e categorizado. Confira e edite abaixo.
+          <Link href="/resumo" className="ml-auto inline-flex items-center gap-1 font-medium text-white bg-[#4ade80]/20 hover:bg-[#4ade80]/30 rounded-lg px-3 py-1 transition-colors">
+            Ver meu resumo <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
         </div>
       )}
 
@@ -211,6 +222,9 @@ function HoleriteResult({ h, onReset }: { h: Holerite; onReset: () => void }) {
         <p className="text-xs text-[#7070a0] mt-3">
           ✓ Salvo como renda fixa no Resumo.{h.tipo === 'adiantamento' ? ' É um adiantamento — quando vier o fechamento do mês, sobe também que eu somo.' : ''}
         </p>
+        <Link href="/resumo" className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-[#4d8dff] hover:text-[#6da3ff]">
+          Ver meu resumo <ArrowRight className="w-4 h-4" />
+        </Link>
       </div>
     </div>
   )
