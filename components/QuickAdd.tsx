@@ -20,10 +20,10 @@ export default function QuickAdd() {
     const id = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
     const newTx: Transaction = { ...tx, id }
     const delta = tx.category === 'receita' ? tx.value : -tx.value
-    const newData = {
-      ...data,
-      transactions: [...data.transactions, newTx],
-      monthlySummaries: data.monthlySummaries.map(s => {
+    setData((prev) => ({
+      ...prev,
+      transactions: [...prev.transactions, newTx],
+      monthlySummaries: prev.monthlySummaries.map(s => {
         if (s.month !== tx.month) return s
         return {
           ...s,
@@ -33,8 +33,7 @@ export default function QuickAdd() {
           saldo: s.saldo + delta,
         }
       }),
-    }
-    setData(newData)
+    }))
     close()
   }
 
@@ -102,7 +101,7 @@ export default function QuickAdd() {
       {mode === 'investimento' && (
         <InvestimentoModal
           onSave={(inv) => {
-            setData({ ...data, investments: [...data.investments, { ...inv, id: `inv_${Date.now()}` }] })
+            setData((prev) => ({ ...prev, investments: [...prev.investments, { ...inv, id: `inv_${Date.now()}` }] }))
             close()
           }}
           onClose={close}
@@ -112,7 +111,7 @@ export default function QuickAdd() {
       {mode === 'parcela' && (
         <ParcelaModal
           onSave={(inst) => {
-            setData({ ...data, installments: [...data.installments, { ...inst, id: `inst_${Date.now()}` }] })
+            setData((prev) => ({ ...prev, installments: [...prev.installments, { ...inst, id: `inst_${Date.now()}` }] }))
             close()
           }}
           onClose={close}

@@ -47,6 +47,8 @@ export default function DataProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false)
   const isSaving = useRef(false)
   const monthInit = useRef(false)
+  // Sempre aponta pro estado mais recente — é o que o updater funcional lê.
+  const dataRef = useRef<FinanceData | null>(null)
 
   // Autenticação: sem sessão → tela de login. RLS no Supabase só libera dados
   // pra quem está logado, então nada carrega sem sessão.
@@ -65,6 +67,7 @@ export default function DataProvider({ children }: { children: ReactNode }) {
     // Carrega dados do Supabase (ou usa os dados iniciais)
     loadFromSupabase().then(remoteData => {
       const finalData = remoteData ?? emptyData
+      dataRef.current = finalData
       setDataState(finalData)
       saveData(finalData)
       if (!remoteData) saveToSupabase(emptyData)
@@ -86,6 +89,7 @@ export default function DataProvider({ children }: { children: ReactNode }) {
         (payload) => {
           if (!isSaving.current) {
             const updated = (payload.new as { data: FinanceData }).data
+            dataRef.current = updated
             setDataState(updated)
             saveData(updated)
           }
@@ -96,11 +100,16 @@ export default function DataProvider({ children }: { children: ReactNode }) {
     return () => { supabase.removeChannel(channel) }
   }, [session])
 
-  const setData = (d: FinanceData) => {
+  const setData = (d: FinanceData | ((prev: FinanceData) => FinanceData)) => {
+    // Updater funcional lê dataRef (estado ATUAL), não um closure velho — dois
+    // uploads em voo somam em vez de um sobrescrever o outro.
+    const next = typeof d === 'function' ? (dataRef.current ? d(dataRef.current) : null) : d
+    if (!next) return
     isSaving.current = true
-    setDataState(d)
-    saveData(d)
-    saveToSupabase(d).finally(() => {
+    dataRef.current = next
+    setDataState(next)
+    saveData(next)
+    saveToSupabase(next).finally(() => {
       setTimeout(() => { isSaving.current = false }, 500)
     })
   }

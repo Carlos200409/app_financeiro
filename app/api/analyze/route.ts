@@ -52,8 +52,12 @@ const SCHEMA = {
       type: 'string',
       description: 'origem do extrato (banco/cartão), ex "Nubank", "Cartão Bradesco". "Extrato" se não der pra saber.',
     },
+    cartaoCredito: {
+      type: 'boolean',
+      description: 'true se isto parece FATURA DE CARTÃO onde as COMPRAS aparecem com valor POSITIVO (convenção invertida, ex: CSV do cartão Nubank)',
+    },
   },
-  required: ['items', 'insights', 'source'],
+  required: ['items', 'insights', 'source', 'cartaoCredito'],
 }
 
 const SYSTEM = `Você é um analista financeiro pessoal brasileiro, direto e honesto.
@@ -67,6 +71,12 @@ Para cada transação devolva:
 
 Entradas de dinheiro (valor positivo) são category "Renda" e level "essencial".
 Salário (recorrente) é recurring=true; renda avulsa/variável (corrida, freela, venda) é recurring=false.
+
+ATENÇÃO — FATURA DE CARTÃO: alguns exports de cartão (ex: CSV do cartão Nubank) listam
+COMPRAS com valor POSITIVO e pagamento/estorno negativo. Se a lista parecer isso
+(maioria positiva, descrições de compras em estabelecimentos), retorne cartaoCredito=true
+e categorize as compras normalmente (NÃO como Renda). Pagamento de fatura é "Transferência".
+Se for extrato normal (gastos negativos), cartaoCredito=false.
 
 Depois, em "insights", aponte 3 a 5 coisas concretas: onde está vazando dinheiro,
 quais gastos supérfluos somam mais, e quanto daria pra sobrar cortando. Use valores em R$.
@@ -128,8 +138,13 @@ export async function POST(request: Request) {
     const byIndex = new Map<number, { category: string; level: string; reason: string; recurring: boolean }>()
     for (const it of parsed.items ?? []) byIndex.set(it.i, it)
 
+    // Fatura de cartão com convenção invertida: compra positiva vira gasto
+    // (negativo); linha negativa (pagamento/estorno) vira positiva — e como o
+    // pagamento é "Transferência", o cálculo trata como neutro, não renda.
+    const cartao = parsed.cartaoCredito === true
     const result = transactions.map((t, i) => ({
       ...t,
+      amount: cartao ? -t.amount : t.amount,
       category: byIndex.get(i)?.category ?? 'Outros',
       level: byIndex.get(i)?.level ?? 'util',
       reason: byIndex.get(i)?.reason ?? '',

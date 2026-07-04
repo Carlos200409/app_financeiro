@@ -30,16 +30,19 @@ export default function ImportsManager() {
 
   if (!data || imports.length === 0) return null
 
-  const commit = (next: ImportGroup[]) => setData({ ...data, imports: next })
+  // Updater funcional: cada edição parte do estado ATUAL — edições rápidas em
+  // sequência não se perdem.
+  const commit = (fn: (prev: ImportGroup[]) => ImportGroup[]) =>
+    setData((prev) => ({ ...prev, imports: fn(prev.imports ?? []) }))
   const toggle = (id: string) => setOpen((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n })
 
   const editItem = (gid: string, tid: string, patch: Partial<ImportGroup['transactions'][number]>) =>
-    commit(imports.map((g) => g.id === gid ? { ...g, transactions: g.transactions.map((t) => t.id === tid ? { ...t, ...patch } : t) } : g))
+    commit((prev) => prev.map((g) => g.id === gid ? { ...g, transactions: g.transactions.map((t) => t.id === tid ? { ...t, ...patch } : t) } : g))
   const deleteItem = (gid: string, tid: string) =>
-    commit(imports.map((g) => g.id === gid ? { ...g, transactions: g.transactions.filter((t) => t.id !== tid) } : g))
+    commit((prev) => prev.map((g) => g.id === gid ? { ...g, transactions: g.transactions.filter((t) => t.id !== tid) } : g))
   const renameGroup = (gid: string, source: string) =>
-    commit(imports.map((g) => g.id === gid ? { ...g, source } : g))
-  const deleteGroup = (gid: string) => commit(imports.filter((g) => g.id !== gid))
+    commit((prev) => prev.map((g) => g.id === gid ? { ...g, source } : g))
+  const deleteGroup = (gid: string) => commit((prev) => prev.filter((g) => g.id !== gid))
 
   return (
     <div className="mt-8">
@@ -96,7 +99,14 @@ export default function ImportsManager() {
                         type="number"
                         step="0.01"
                         defaultValue={t.amount}
-                        onBlur={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v) && v !== t.amount) editItem(g.id, t.id, { amount: v }) }}
+                        onBlur={(e) => {
+                          const v = parseFloat(e.target.value)
+                          if (isNaN(v)) return
+                          // Preserva o sinal original: corrigir "39.90" pra "42" num
+                          // gasto continua gasto — não vira renda por falta do "-".
+                          const signed = t.amount < 0 ? -Math.abs(v) : Math.abs(v)
+                          if (signed !== t.amount) editItem(g.id, t.id, { amount: signed })
+                        }}
                         className="bg-transparent text-sm font-medium text-right outline-none w-24 focus:bg-[#0d0d1a] rounded px-1 py-0.5"
                         style={{ color: t.amount < 0 ? '#ffffff' : '#4ade80' }}
                       />

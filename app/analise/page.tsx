@@ -12,7 +12,7 @@ import ImportsManager from '@/components/ImportsManager'
 type Mode = 'extrato' | 'holerite'
 
 export default function AnalisePage() {
-  const { data, setData } = useData()
+  const { setData } = useData()
   const [mode, setMode] = useState<Mode>('extrato')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -22,14 +22,15 @@ export default function AnalisePage() {
   const switchMode = (m: Mode) => { setMode(m); setError(null); setHolerite(null); setImported(null) }
 
   // Cria uma fatura (grupo com itens) a partir do resultado da IA e salva.
+  // Updater funcional: uploads em sequência não se sobrescrevem.
   const applyResult = useCallback((payload: { transactions: Omit<AnalyzedTransaction, 'id'>[]; insights?: string[]; source?: string }) => {
     const base = Date.now()
     const transactions: AnalyzedTransaction[] = payload.transactions.map((t, i) => ({ ...t, id: `tx_${base}_${i}` }))
     const source = payload.source || 'Extrato'
     const group: ImportGroup = { id: `imp_${base}`, source, importedAt: new Date().toISOString(), transactions }
-    if (data) setData({ ...data, imports: [...(data.imports ?? []), group], insights: payload.insights ?? data.insights })
+    setData((prev) => ({ ...prev, imports: [...(prev.imports ?? []), group], insights: payload.insights ?? prev.insights }))
     setImported(source)
-  }, [data, setData])
+  }, [setData])
 
   const analyze = useCallback(async (raw: RawTransaction[]) => {
     if (!raw.length) { setError('Não achei transações nesse arquivo. É mesmo CSV/OFX?'); return }
@@ -90,9 +91,9 @@ export default function AnalisePage() {
       if (!res.ok) { setError(payload.error ?? 'Erro ao ler o holerite.'); return }
       const h: Holerite = { ...payload.holerite, addedAt: new Date().toISOString() }
       setHolerite(h)
-      if (data) setData({ ...data, holerites: [...(data.holerites ?? []), h] })
+      setData((prev) => ({ ...prev, holerites: [...(prev.holerites ?? []), h] }))
     } catch { setError('Falha ao processar a imagem.') } finally { setLoading(false) }
-  }, [data, setData])
+  }, [setData])
 
   return (
     <div className="px-4 md:px-8 py-6 max-w-5xl mx-auto">

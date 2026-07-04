@@ -10,7 +10,7 @@ import { computeSummary } from '@/lib/finance-summary'
 
 export default function ResumoPage() {
   const { data, currentMonth } = useData()
-  const s = useMemo(() => computeSummary(data, currentMonth), [data?.analyzed, data?.holerites, data?.transactions, currentMonth])
+  const s = useMemo(() => computeSummary(data, currentMonth), [data?.analyzed, data?.imports, data?.holerites, data?.transactions, currentMonth])
 
   return (
     <div className="px-4 md:px-8 py-6 max-w-5xl mx-auto">

@@ -84,19 +84,22 @@ export function computeSummary(data: FinanceData | null, month?: MonthKey | null
   // Filtra pelo mês, se pedido.
   const entries = month ? all.filter((e) => e.month === month) : all.slice()
 
-  // Holerite entra como renda fixa só se não houver outra renda no mesmo escopo
-  // (evita contar o salário duas vezes).
+  // Holerite entra como renda fixa a menos que já exista SALÁRIO (renda
+  // recorrente) no escopo — evita contar 2x sem apagar o holerite quando entra
+  // um Pix/freela avulso no mês.
   const holeriteScope = holerites
     .filter((h) => !month || monthFromCompetencia(h.competencia) === month)
     .reduce((a, h) => a + (h.liquido || 0), 0)
-  const temRenda = entries.some((e) => e.amount > 0)
-  if (!temRenda && holeriteScope > 0) {
+  const temSalario = entries.some((e) => e.amount > 0 && e.recurring)
+  if (!temSalario && holeriteScope > 0) {
     entries.push({ amount: holeriteScope, category: 'Renda', level: 'essencial', recurring: true, month: month ?? null })
   }
 
   if (entries.length === 0) return null
 
-  const positives = entries.filter((e) => e.amount > 0)
+  // Transferência positiva (ex: pagamento de fatura do cartão) não é renda —
+  // é dinheiro trocando de bolso. Fica neutra (nem renda, nem gasto).
+  const positives = entries.filter((e) => e.amount > 0 && e.category !== 'Transferência')
   const negatives = entries.filter((e) => e.amount < 0)
 
   const rendaFixa = positives.filter((e) => e.recurring).reduce((a, e) => a + e.amount, 0)

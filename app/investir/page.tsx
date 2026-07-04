@@ -9,7 +9,7 @@ import { computeSummary } from '@/lib/finance-summary'
 
 export default function InvestirPage() {
   const { data, currentMonth } = useData()
-  const s = useMemo(() => computeSummary(data, currentMonth), [data?.analyzed, data?.holerites, data?.transactions, currentMonth])
+  const s = useMemo(() => computeSummary(data, currentMonth), [data?.analyzed, data?.imports, data?.holerites, data?.transactions, currentMonth])
 
   const investido = useMemo(
     () => (data?.investments ?? []).reduce((a, i) => a + i.value, 0),

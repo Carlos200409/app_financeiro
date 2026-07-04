@@ -35,7 +35,9 @@ export function getCurrentMonth(): MonthKey {
 
 export interface DataContextType {
   data: FinanceData | null
-  setData: (d: FinanceData) => void
+  // Aceita updater funcional: setData(prev => ...) lê o estado ATUAL na hora de
+  // gravar — assim dois uploads em voo não se sobrescrevem (stale closure).
+  setData: (d: FinanceData | ((prev: FinanceData) => FinanceData)) => void
   currentMonth: MonthKey
   setCurrentMonth: (m: MonthKey) => void
 }
