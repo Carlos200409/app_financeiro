@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { Plus, X, TrendingUp, TrendingDown, CreditCard, PiggyBank } from 'lucide-react'
 import { useData } from '@/lib/store'
-import { Transaction, Installment, Investment } from '@/lib/types'
+import { Transaction, Installment, Investment, MONTHS } from '@/lib/types'
 import TransactionModal from './TransactionModal'
 
 type Mode = 'receita' | 'fixo' | 'extra' | 'parcela' | 'investimento' | null
@@ -17,14 +17,18 @@ export default function QuickAdd() {
   const close = () => { setOpen(false); setMode(null) }
 
   const handleTx = (tx: Omit<Transaction, 'id'>) => {
-    const id = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
-    const newTx: Transaction = { ...tx, id }
+    // Recorrente: o modal promete "deste mês até Dezembro" — então replica de
+    // verdade em cada mês (antes salvava só 1 e os meses seguintes ficavam 0).
+    const startIdx = MONTHS.indexOf(tx.month)
+    const meses = tx.recurring && startIdx >= 0 ? MONTHS.slice(startIdx) : [tx.month]
+    const base = Date.now()
+    const newTxs: Transaction[] = meses.map((m, i) => ({ ...tx, month: m, id: `${base}_${i}_${Math.random().toString(36).slice(2, 6)}` }))
     const delta = tx.category === 'receita' ? tx.value : -tx.value
     setData((prev) => ({
       ...prev,
-      transactions: [...prev.transactions, newTx],
+      transactions: [...prev.transactions, ...newTxs],
       monthlySummaries: prev.monthlySummaries.map(s => {
-        if (s.month !== tx.month) return s
+        if (!meses.includes(s.month)) return s
         return {
           ...s,
           receita:      tx.category === 'receita' ? s.receita + tx.value : s.receita,

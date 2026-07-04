@@ -9,6 +9,9 @@ import { withClaude } from '@/lib/claude-route'
 // edita (dados são editáveis) ou sobe pra 'claude-opus-4-8'.
 const MODEL = 'claude-sonnet-4-6'
 
+// Leitura por visão demora; o default do Vercel corta antes.
+export const maxDuration = 60
+
 const SCHEMA = {
   type: 'object',
   additionalProperties: false,

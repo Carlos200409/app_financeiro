@@ -27,13 +27,15 @@ export function parseAmount(raw: string): number {
   return negative ? -n : n
 }
 
-// "31/12/2026", "2026-12-31", "20261231" → "2026-12-31"; senão devolve o texto
+// "31/12/2026", "31/12/26", "2026-12-31", "20261231" → "2026-12-31"; senão o texto
 export function parseDate(raw: string): string {
   const s = raw.trim()
   let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/) // ISO
   if (m) return `${m[1]}-${m[2]}-${m[3]}`
   m = s.match(/^(\d{2})[/.-](\d{2})[/.-](\d{4})/) // DD/MM/YYYY
   if (m) return `${m[3]}-${m[2]}-${m[1]}`
+  m = s.match(/^(\d{2})[/.-](\d{2})[/.-](\d{2})$/) // DD/MM/YY (bancos exportam assim)
+  if (m) return `20${m[3]}-${m[2]}-${m[1]}`
   m = s.match(/^(\d{4})(\d{2})(\d{2})/) // OFX DTPOSTED: YYYYMMDD...
   if (m) return `${m[1]}-${m[2]}-${m[3]}`
   return s

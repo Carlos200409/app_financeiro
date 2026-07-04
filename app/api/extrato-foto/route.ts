@@ -9,6 +9,9 @@ import { CATEGORIES } from '@/lib/types'
 // foto/PDF de extrato. Itens editáveis se algo vier errado.
 const MODEL = 'claude-sonnet-4-6'
 
+// Ler foto/PDF demora; o default do Vercel corta antes.
+export const maxDuration = 60
+
 const LEVELS = ['essencial', 'util', 'superfluo'] as const
 
 const SCHEMA = {

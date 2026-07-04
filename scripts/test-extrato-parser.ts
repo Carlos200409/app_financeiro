@@ -13,6 +13,7 @@ assert.equal(parseAmount('-1.000.000,00'), -1000000)
 assert.equal(parseDate('31/12/2026'), '2026-12-31')
 assert.equal(parseDate('2026-12-31'), '2026-12-31')
 assert.equal(parseDate('20261231120000'), '2026-12-31')
+assert.equal(parseDate('31/12/26'), '2026-12-31') // ano de 2 dígitos
 
 // CSV com cabeçalho (Nubank-ish) e separador vírgula
 const csv = `date,title,amount

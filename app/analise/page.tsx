@@ -55,6 +55,13 @@ export default function AnalisePage() {
     setLoading(true); setError(null); setImported(null)
     try {
       const isPdf = /\.pdf$/i.test(file.name) || file.type === 'application/pdf'
+      // PDF vai inteiro (sem redução) e base64 infla ~33% — acima de ~3MB o
+      // servidor rejeita o body (limite do Vercel). Avisa antes de gastar tempo.
+      if (isPdf && file.size > 3 * 1024 * 1024) {
+        setError('Esse PDF é grande demais (máx ~3MB). Exporta menos páginas, ou tira uma foto da parte que interessa.')
+        setLoading(false)
+        return
+      }
       const { base64, mediaType } = isPdf ? await fileToBase64(file) : await fileToScaledBase64(file)
       const res = await fetch('/api/extrato-foto', { method: 'POST', headers: await authHeaders(), body: JSON.stringify({ data: base64, mediaType }) })
       const payload = await res.json()

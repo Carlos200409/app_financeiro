@@ -10,6 +10,9 @@ import { CATEGORIES } from '@/lib/types'
 // pra ficar ainda mais barato, ou 'claude-opus-4-8' pra julgamento mais fino.
 const MODEL = 'claude-sonnet-4-6'
 
+// Análise de extrato grande demora; o default do Vercel corta antes.
+export const maxDuration = 60
+
 const LEVELS = ['essencial', 'util', 'superfluo'] as const
 
 interface RawTransaction {
@@ -89,11 +92,11 @@ export async function POST(request: Request) {
     if (!Array.isArray(transactions) || transactions.length === 0) {
       return Response.json({ error: 'Nenhuma transação enviada.' }, { status: 400 })
     }
-    // ponytail: limite simples pra não estourar contexto/output num extrato gigante.
-    // Acima disso, o cliente deve quebrar em lotes (ainda não implementado).
-    if (transactions.length > 300) {
+    // ponytail: teto de 150 — acima disso o output encosta no max_tokens (JSON
+    // truncado → análise perdida) e no timeout do Vercel. Lotes ficam pro futuro.
+    if (transactions.length > 150) {
       return Response.json(
-        { error: `Extrato com ${transactions.length} transações é grande demais por enquanto (máx 300). Filtre por período e tente de novo.` },
+        { error: `Extrato com ${transactions.length} transações é grande demais por enquanto (máx 150). Exporta um período menor (ex: 1 mês) e tenta de novo.` },
         { status: 413 },
       )
     }
