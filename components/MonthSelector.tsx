@@ -2,17 +2,19 @@
 import { useMemo } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { MONTHS, MONTH_LABELS } from '@/lib/types'
-import { useData } from '@/lib/store'
+import { useData, getCurrentMonth } from '@/lib/store'
 import { monthsWithData } from '@/lib/finance-summary'
 
 export default function MonthSelector() {
   const { data, currentMonth, setCurrentMonth } = useData()
 
-  // Navega só entre meses que têm movimento — sem clicar 5x em mês vazio.
-  // Se o mês atual não está na lista (ex: recém-logado), inclui pra não travar.
+  // Navega entre meses com movimento + o mês do calendário (sempre acessível,
+  // mesmo vazio — é onde você lança e importa o mês corrente) + o selecionado.
   const meses = useMemo(() => {
-    const m = monthsWithData(data)
-    return m.includes(currentMonth) ? m : MONTHS.filter((k) => m.includes(k) || k === currentMonth)
+    const com = new Set(monthsWithData(data))
+    com.add(getCurrentMonth())
+    com.add(currentMonth)
+    return MONTHS.filter((k) => com.has(k))
   }, [data, currentMonth])
 
   const idx = meses.indexOf(currentMonth)
