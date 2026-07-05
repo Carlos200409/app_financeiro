@@ -65,6 +65,12 @@ function buildEntries(data: FinanceData | null): Entry[] {
   return entries
 }
 
+// "2026-07" → "2026-06" (vira o ano em janeiro).
+export function previousPeriod(period: string): string {
+  const [y, m] = period.split('-').map(Number)
+  return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`
+}
+
 // Períodos (YYYY-MM) que têm qualquer dado, ordenados (pro seletor).
 export function periodsWithData(data: FinanceData | null): string[] {
   const set = new Set<string>()

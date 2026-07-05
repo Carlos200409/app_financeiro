@@ -4,15 +4,44 @@ import { TrendingUp, TrendingDown, PiggyBank, Flame, Sparkles, Loader2, RefreshC
 import KPICard from '@/components/KPICard'
 import EmptyCTA from '@/components/EmptyCTA'
 import MonthSelector from '@/components/MonthSelector'
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import { useData } from '@/lib/store'
-import { fmt } from '@/lib/format'
-import { computeSummary } from '@/lib/finance-summary'
+import { fmt, fmtShort } from '@/lib/format'
+import { computeSummary, previousPeriod, periodsWithData } from '@/lib/finance-summary'
+import { periodLabel } from '@/lib/types'
 import { buildAIContext } from '@/lib/ai-context'
 import { authHeaders } from '@/lib/api'
 
 export default function ResumoPage() {
   const { data, setData, currentMonth } = useData()
   const s = useMemo(() => computeSummary(data, currentMonth), [data?.imports, data?.holerites, data?.transactions, currentMonth])
+
+  // Mês anterior — pro "+X% vs Junho" e pro veredito comparar.
+  const sAnterior = useMemo(
+    () => computeSummary(data, previousPeriod(currentMonth)),
+    [data?.imports, data?.holerites, data?.transactions, currentMonth],
+  )
+  const variacaoGastos = s && sAnterior && sAnterior.gastos > 0
+    ? ((s.gastos - sAnterior.gastos) / sAnterior.gastos) * 100
+    : null
+
+  // Metas estouradas no período (alerta no topo).
+  const metasEstouradas = useMemo(() => {
+    if (!s || !data?.metas) return []
+    return s.categorias
+      .filter(([cat, val]) => data.metas![cat] && val > data.metas![cat])
+      .map(([cat, val]) => ({ cat, val, meta: data.metas![cat] }))
+  }, [s, data?.metas])
+
+  // Últimos 3 períodos com dados → gráfico de barras renda vs gastos.
+  const chart = useMemo(() => {
+    return periodsWithData(data)
+      .slice(-3)
+      .map((p) => {
+        const ps = computeSummary(data, p)
+        return { name: periodLabel(p).replace(' 20', '/'), Renda: ps?.renda ?? 0, Gastos: ps?.gastos ?? 0 }
+      })
+  }, [data?.imports, data?.holerites, data?.transactions])
   const [gerando, setGerando] = useState(false)
   const [erroVeredito, setErroVeredito] = useState<string | null>(null)
 
@@ -36,6 +65,10 @@ export default function ResumoPage() {
             essencial: s.essencial, util: s.util, besteira: s.besteira,
             assinaturas: s.assinaturas, categorias: s.categorias,
             parcelas: (data?.installments ?? []).filter((p) => p.status === 'ATIVO').map((p) => `${p.description}: R$ ${p.valuePerInstallment}/mês, faltam ${p.remaining}x`),
+            mesAnterior: sAnterior
+              ? { renda: sAnterior.renda, gastos: sAnterior.gastos, sobrou: sAnterior.sobrou, besteira: sAnterior.besteira }
+              : null,
+            metas: data?.metas ?? {},
           },
           vereditosFaturas,
           context: buildAIContext(data),
@@ -74,6 +107,17 @@ export default function ResumoPage() {
           {/* Veredito — o payoff */}
           <Verdict sobrou={s.sobrou} besteira={s.besteira} maiorFuga={s.maiorFuga} />
 
+          {/* Metas estouradas */}
+          {metasEstouradas.length > 0 && (
+            <div className="mt-3 bg-[#f87171]/8 border border-[#f87171]/30 rounded-2xl px-4 py-3 text-sm">
+              {metasEstouradas.map(({ cat, val, meta }) => (
+                <p key={cat} className="text-[#f87171]">
+                  ⚠️ <span className="font-medium">{cat}</span> estourou a meta: {fmt(val)} de {fmt(meta)} (+{fmt(val - meta)})
+                </p>
+              ))}
+            </div>
+          )}
+
           {/* KPIs */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-6">
             <KPICard
@@ -98,6 +142,36 @@ export default function ResumoPage() {
               subtitle="gasto supérfluo"
             />
           </div>
+
+          {/* Comparativo com o mês anterior + evolução */}
+          {chart.length >= 2 && (
+            <div className="bg-[#141424] border border-[#1a1a2e] rounded-2xl p-4 md:p-5 mt-6">
+              <div className="flex items-baseline justify-between mb-3">
+                <h2 className="text-sm font-semibold">Comparado ao mês anterior</h2>
+                {variacaoGastos !== null && (
+                  <span className={`text-sm font-semibold ${variacaoGastos > 0 ? 'text-[#f87171]' : 'text-[#4ade80]'}`}>
+                    Gastos {variacaoGastos > 0 ? '+' : ''}{variacaoGastos.toFixed(0)}%
+                  </span>
+                )}
+              </div>
+              <div className="h-44 -ml-2">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={chart} margin={{ top: 5, right: 8, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1a1a2e" vertical={false} />
+                    <XAxis dataKey="name" stroke="#505070" fontSize={11} tickLine={false} axisLine={false} />
+                    <YAxis stroke="#505070" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v) => fmtShort(v)} width={54} />
+                    <Tooltip
+                      cursor={{ fill: 'rgba(255,255,255,0.03)' }}
+                      contentStyle={{ background: '#0d0d1a', border: '1px solid #1a1a2e', borderRadius: 12, fontSize: 12 }}
+                      formatter={(v) => fmt(Number(v))}
+                    />
+                    <Bar dataKey="Renda" fill="#4ade80" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="Gastos" fill="#f87171" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
 
           {/* Onde vai o dinheiro */}
           {s.categorias.length > 0 && (

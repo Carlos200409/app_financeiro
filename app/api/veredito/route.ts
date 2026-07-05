@@ -31,7 +31,9 @@ por categoria, essencial/útil/besteira, parcelas) e os vereditos das faturas de
 
 Dê o VEREDITO GERAL do mês (2-4 frases: verde ou vermelho, por quê, o padrão que
 mais importa) e EXATAMENTE 3 ações concretas e mensuráveis pro próximo mês, em R$.
-Sem enrolação, sem jargão, sem julgamento moral — só clareza e número.`
+Se o resumo trouxer "mesAnterior", COMPARE: gastou mais ou menos que no mês
+passado, e o que puxou a diferença. Se trouxer "metas" (teto por categoria),
+COBRE as estouradas com o valor do estouro. Sem enrolação — clareza e número.`
 
 export async function POST(request: Request) {
   return withClaude(request, async (client) => {

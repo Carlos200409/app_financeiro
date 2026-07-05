@@ -123,6 +123,7 @@ export interface FinanceData {
   sobreMim?: string // contexto pessoal que o usuário escreve pra IA julgar melhor
   correcoes?: Correction[] // últimas correções do usuário (a IA aprende; cap 50)
   veredito?: MonthVerdict // veredito global do mês (on-demand, cacheado)
+  metas?: Record<string, number> // teto mensal por categoria (orçamento simples)
 }
 
 // Veredito global de um mês: gerado sob demanda no Resumo e cacheado — só

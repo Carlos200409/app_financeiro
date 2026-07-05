@@ -12,6 +12,20 @@ import { LEVEL_META as LEVEL } from '@/lib/types'
 export default function GastosPage() {
   const { data, setData, currentMonth } = useData()
 
+  // Meta por categoria: prompt simples (valor vazio remove a meta).
+  const definirMeta = (cat: string) => {
+    const atual = data?.metas?.[cat]
+    const v = prompt(`Teto mensal pra ${cat} (R$). Vazio remove a meta.`, atual ? String(atual) : '')
+    if (v === null) return
+    const num = parseFloat(v.replace(',', '.'))
+    setData((prev) => {
+      const metas = { ...(prev.metas ?? {}) }
+      if (!v.trim() || isNaN(num) || num <= 0) delete metas[cat]
+      else metas[cat] = num
+      return { ...prev, metas }
+    })
+  }
+
   // Ajuste manual do contador de parcelas (a IA marca sozinha ao importar o
   // extrato; isto é a rede de segurança se ela errar ou você pagar por fora).
   const ajustarParcela = (id: string, delta: number) =>
@@ -69,20 +83,35 @@ export default function GastosPage() {
             </div>
           </div>
 
-          {/* Por categoria */}
+          {/* Por categoria (com meta opcional: toque no alvo pra definir teto) */}
           <div className="bg-[#141424] border border-[#1a1a2e] rounded-2xl p-5 mb-6">
-            <h2 className="text-sm font-semibold mb-4">Por categoria</h2>
+            <h2 className="text-sm font-semibold mb-1">Por categoria</h2>
+            <p className="text-xs text-[#505070] mb-4">Toque no 🎯 pra definir um teto mensal — a barra fica vermelha se estourar.</p>
             <div className="space-y-3">
               {s.categorias.map(([cat, val]) => {
-                const pct = s.gastos > 0 ? (val / s.gastos) * 100 : 0
+                const meta = data?.metas?.[cat]
+                const estourou = !!meta && val > meta
+                // Com meta: barra mede o consumo do teto; sem meta: fatia do total.
+                const pct = meta ? Math.min(100, (val / meta) * 100) : s.gastos > 0 ? (val / s.gastos) * 100 : 0
                 return (
                   <div key={cat}>
-                    <div className="flex justify-between text-sm mb-1">
-                      <span className="text-[#b0b0d0]">{cat}</span>
-                      <span className="text-white font-medium">{fmt(val)} <span className="text-[#505070]">· {pct.toFixed(0)}%</span></span>
+                    <div className="flex items-center justify-between text-sm mb-1 gap-2">
+                      <span className="text-[#b0b0d0] flex items-center gap-1.5">
+                        {cat}
+                        <button onClick={() => definirMeta(cat)} title={meta ? `Meta: ${fmt(meta)}` : 'Definir meta'} className="opacity-60 hover:opacity-100 text-xs">🎯</button>
+                      </span>
+                      <span className={`font-medium ${estourou ? 'text-[#f87171]' : 'text-white'}`}>
+                        {fmt(val)}
+                        {meta
+                          ? <span className={estourou ? 'text-[#f87171]' : 'text-[#505070]'}> / {fmt(meta)}{estourou ? ' ⚠️' : ''}</span>
+                          : <span className="text-[#505070]"> · {pct.toFixed(0)}%</span>}
+                      </span>
                     </div>
                     <div className="h-1.5 rounded-full bg-[#0d0d1a] overflow-hidden">
-                      <div className="h-full rounded-full bg-gradient-to-r from-[#4d8dff] to-[#9966ff]" style={{ width: `${pct}%` }} />
+                      <div
+                        className="h-full rounded-full"
+                        style={{ width: `${pct}%`, background: estourou ? '#f87171' : 'linear-gradient(to right, #4d8dff, #9966ff)' }}
+                      />
                     </div>
                   </div>
                 )
