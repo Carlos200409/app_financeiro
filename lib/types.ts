@@ -69,6 +69,15 @@ export interface ImportGroup {
   source: string // "Cartão Bradesco", "Nubank", "Extrato", ...
   importedAt: string
   transactions: AnalyzedTransaction[]
+  verdict?: string // veredito da IA sobre ESTA fatura (2-3 frases)
+}
+
+// Correção feita pelo usuário numa categorização da IA — vira exemplo nas
+// próximas análises (a IA aprende com você).
+export interface Correction {
+  description: string
+  category: string
+  level: SpendingLevel
 }
 
 // Holerite lido por foto (Claude vision). Vira renda fixa no Resumo.
@@ -91,8 +100,9 @@ export interface FinanceData {
   monthlySummaries: MonthSummary[]
   importedAt: string
   imports?: ImportGroup[] // extratos/faturas importados, agrupados e editáveis
-  insights?: string[] // insights da IA sobre onde economizar
   holerites?: Holerite[] // holerites lidos por foto (renda fixa)
+  sobreMim?: string // contexto pessoal que o usuário escreve pra IA julgar melhor
+  correcoes?: Correction[] // últimas correções do usuário (a IA aprende; cap 50)
 }
 
 export const MONTHS: MonthKey[] = ['JAN','FEV','MAR','ABR','MAI','JUN','JUL','AGO','SET','OUT','NOV','DEZ']

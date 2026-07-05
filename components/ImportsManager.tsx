@@ -29,7 +29,22 @@ export default function ImportsManager() {
   const toggle = (id: string) => setOpen((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n })
 
   const editItem = (gid: string, tid: string, patch: Partial<ImportGroup['transactions'][number]>) => {
-    commit((prev) => prev.map((g) => g.id === gid ? { ...g, transactions: g.transactions.map((t) => t.id === tid ? { ...t, ...patch } : t) } : g))
+    setData((prev) => {
+      const imports2 = (prev.imports ?? []).map((g) => g.id === gid ? { ...g, transactions: g.transactions.map((t) => t.id === tid ? { ...t, ...patch } : t) } : g)
+      // Correção de categoria/nível vira exemplo pras próximas análises — a IA
+      // aprende com você e para de repetir o erro (cap 50, sem duplicar descrição).
+      let correcoes = prev.correcoes ?? []
+      if (patch.category || patch.level) {
+        const t = imports2.find((g) => g.id === gid)?.transactions.find((x) => x.id === tid)
+        if (t) {
+          correcoes = [
+            ...correcoes.filter((c) => c.description !== t.description),
+            { description: t.description, category: t.category, level: t.level },
+          ].slice(-50)
+        }
+      }
+      return { ...prev, imports: imports2, correcoes }
+    })
     setFlash(tid)
     setTimeout(() => setFlash((f) => (f === tid ? null : f)), 900)
   }
@@ -68,6 +83,13 @@ export default function ImportsManager() {
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
+
+              {/* Veredito da IA sobre esta fatura */}
+              {aberto && g.verdict && (
+                <p className="border-t border-[#1a1a2e] px-4 py-3 text-sm text-[#b0b0d0] bg-[#4d8dff]/5">
+                  💡 {g.verdict}
+                </p>
+              )}
 
               {/* Itens (micro, editáveis) */}
               {aberto && (

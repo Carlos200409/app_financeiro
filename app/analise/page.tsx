@@ -5,6 +5,7 @@ import { Upload, Loader2, Sparkles, AlertTriangle, FileText, Camera, CheckCircle
 import { parseExtrato, RawTransaction } from '@/lib/extrato-parser'
 import { fileToScaledBase64, fileToBase64 } from '@/lib/image'
 import { authHeaders } from '@/lib/api'
+import { buildAIContext } from '@/lib/ai-context'
 import { fmt } from '@/lib/format'
 import { useData } from '@/lib/store'
 import { AnalyzedTransaction, Holerite, ImportGroup, MONTHS } from '@/lib/types'
@@ -13,7 +14,7 @@ import ImportsManager from '@/components/ImportsManager'
 type Mode = 'extrato' | 'holerite'
 
 export default function AnalisePage() {
-  const { setData, setCurrentMonth } = useData()
+  const { data, setData, setCurrentMonth } = useData()
   const [mode, setMode] = useState<Mode>('extrato')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -22,14 +23,20 @@ export default function AnalisePage() {
 
   const switchMode = (m: Mode) => { setMode(m); setError(null); setHolerite(null); setImported(null) }
 
-  // Cria uma fatura (grupo com itens) a partir do resultado da IA e salva.
+  // Cria uma fatura (grupo com itens + veredito) a partir do resultado da IA.
   // Updater funcional: uploads em sequência não se sobrescrevem.
-  const applyResult = useCallback((payload: { transactions: Omit<AnalyzedTransaction, 'id'>[]; insights?: string[]; source?: string }) => {
+  const applyResult = useCallback((payload: { transactions: Omit<AnalyzedTransaction, 'id'>[]; verdict?: string; source?: string }) => {
     const base = Date.now()
     const transactions: AnalyzedTransaction[] = payload.transactions.map((t, i) => ({ ...t, id: `tx_${base}_${i}` }))
     const source = payload.source || 'Extrato'
-    const group: ImportGroup = { id: `imp_${base}`, source, importedAt: new Date().toISOString(), transactions }
-    setData((prev) => ({ ...prev, imports: [...(prev.imports ?? []), group], insights: payload.insights ?? prev.insights }))
+    // Anti-duplicação: subir o mesmo extrato 2x dobraria os números em silêncio.
+    const existentes = new Set((data?.imports ?? []).flatMap((g) => g.transactions).map((t) => `${t.date}|${t.amount}|${t.description}`))
+    const repetidas = transactions.filter((t) => existentes.has(`${t.date}|${t.amount}|${t.description}`)).length
+    if (transactions.length >= 3 && repetidas / transactions.length > 0.7) {
+      if (!confirm(`Esse extrato parece já importado (${repetidas} de ${transactions.length} itens idênticos). Importar mesmo assim?`)) return
+    }
+    const group: ImportGroup = { id: `imp_${base}`, source, importedAt: new Date().toISOString(), transactions, verdict: payload.verdict || undefined }
+    setData((prev) => ({ ...prev, imports: [...(prev.imports ?? []), group] }))
     // Pula pro mês dos dados importados — senão o Resumo abre no mês de hoje
     // (vazio) e parece que o import não funcionou.
     const meses = transactions
@@ -38,18 +45,18 @@ export default function AnalisePage() {
       .sort()
     if (meses.length) setCurrentMonth(MONTHS[parseInt(meses[meses.length - 1], 10) - 1])
     setImported(source)
-  }, [setData, setCurrentMonth])
+  }, [setData, setCurrentMonth, data])
 
   const analyze = useCallback(async (raw: RawTransaction[]) => {
     if (!raw.length) { setError('Não achei transações nesse arquivo. É mesmo CSV/OFX?'); return }
     setLoading(true); setError(null); setImported(null)
     try {
-      const res = await fetch('/api/analyze', { method: 'POST', headers: await authHeaders(), body: JSON.stringify({ transactions: raw }) })
+      const res = await fetch('/api/analyze', { method: 'POST', headers: await authHeaders(), body: JSON.stringify({ transactions: raw, context: buildAIContext(data) }) })
       const payload = await res.json()
       if (!res.ok) { setError(payload.error ?? 'Erro ao analisar.'); return }
       applyResult(payload)
     } catch { setError('Falha de conexão ao analisar.') } finally { setLoading(false) }
-  }, [applyResult])
+  }, [applyResult, data])
 
   const analyzeFoto = useCallback(async (file: File) => {
     setLoading(true); setError(null); setImported(null)
@@ -63,14 +70,14 @@ export default function AnalisePage() {
         return
       }
       const { base64, mediaType } = isPdf ? await fileToBase64(file) : await fileToScaledBase64(file)
-      const res = await fetch('/api/extrato-foto', { method: 'POST', headers: await authHeaders(), body: JSON.stringify({ data: base64, mediaType }) })
+      const res = await fetch('/api/extrato-foto', { method: 'POST', headers: await authHeaders(), body: JSON.stringify({ data: base64, mediaType, context: buildAIContext(data) }) })
       const payload = await res.json()
       if (!res.ok) { setError(payload.error ?? 'Erro ao ler.'); return }
       applyResult(payload)
     } catch {
       setError('Não consegui ler essa imagem. Se for foto do iPhone (HEIC), salva como JPG ou tira um print e tenta de novo.')
     } finally { setLoading(false) }
-  }, [applyResult])
+  }, [applyResult, data])
 
   const handleExtrato = useCallback(async (file: File) => {
     setError(null)
@@ -159,6 +166,24 @@ export default function AnalisePage() {
       {holerite && <HoleriteResult h={holerite} onReset={() => setHolerite(null)} />}
 
       {mode === 'extrato' && <ImportsManager />}
+
+      {/* Contexto pessoal pra IA julgar como VOCÊ (essencial vs besteira) */}
+      <div className="mt-8 bg-[#141424] border border-[#1a1a2e] rounded-2xl p-5">
+        <h2 className="text-sm font-semibold mb-1">Contexto pra IA (sobre você)</h2>
+        <p className="text-xs text-[#7070a0] mb-3">
+          O que a IA deve saber pra julgar seus gastos. Ex: &ldquo;faço corridas de app, uso o carro pra trabalhar; academia é prioridade&rdquo;.
+        </p>
+        <textarea
+          defaultValue={data?.sobreMim ?? ''}
+          onBlur={(e) => {
+            const v = e.target.value
+            setData((prev) => (v === (prev.sobreMim ?? '') ? prev : { ...prev, sobreMim: v }))
+          }}
+          rows={3}
+          placeholder="Escreve aqui — vale pra todas as próximas análises."
+          className="w-full bg-[#0d0d1a] border border-[#1a1a2e] rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-[#4d8dff]/60 resize-y"
+        />
+      </div>
     </div>
   )
 }

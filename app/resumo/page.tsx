@@ -85,21 +85,6 @@ export default function ResumoPage() {
           </div>
           )}
 
-          {/* Insights da IA */}
-          {data?.insights && data.insights.length > 0 && (
-            <div className="bg-[#141424] border border-[#1a1a2e] rounded-2xl p-5 mt-6">
-              <h2 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-[#4d8dff]" /> Onde dá pra sobrar
-              </h2>
-              <ul className="space-y-2">
-                {data.insights.map((it, i) => (
-                  <li key={i} className="text-sm text-[#b0b0d0] flex gap-2">
-                    <span className="text-[#4d8dff]">•</span>{it}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
         </>
       )}
     </div>

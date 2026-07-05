@@ -36,10 +36,10 @@ const SCHEMA = {
         required: ['date', 'description', 'amount', 'category', 'level', 'reason', 'recurring'],
       },
     },
-    insights: { type: 'array', items: { type: 'string' } },
+    verdict: { type: 'string', description: 'veredito direto sobre ESTA fatura em 2-3 frases: total, onde pesou mais, o que cortar. Valores em R$.' },
     source: { type: 'string', description: 'origem (banco/cartão) do cabeçalho, ex "Cartão Bradesco", "Nubank". "Extrato" se não achar.' },
   },
-  required: ['ehExtrato', 'transactions', 'insights', 'source'],
+  required: ['ehExtrato', 'transactions', 'verdict', 'source'],
 }
 
 const SYSTEM = `Você lê extratos bancários, faturas de cartão, recibos e notas fiscais a partir de FOTO ou PDF.
@@ -51,16 +51,19 @@ const SYSTEM = `Você lê extratos bancários, faturas de cartão, recibos e not
 - Entradas positivas = category "Renda", level "essencial".
 - ⚠️ HOLERITE/CONTRACHEQUE: se a imagem for um holerite (tem salário, vencimentos e descontos tipo INSS/IRRF/FGTS), NÃO liste os descontos como gastos — eles são retidos na fonte, a pessoa NUNCA recebe nem gasta esse valor. Registre APENAS o valor LÍQUIDO como UMA entrada de Renda (amount positivo, category "Renda"). Desconto de folha nunca é saída/gasto.
 - Se NÃO houver transação nenhuma (foto aleatória), retorne ehExtrato=false e transactions vazio.
-- Em "insights", 3 a 5 frases diretas de onde economizar. Valores em R$.`
+- Em "verdict", o veredito desta fatura em 2-3 frases: total, onde pesou mais, o que cortar. Valores em R$.
+- Se houver um bloco CONTEXTO DO USUÁRIO na mensagem, use-o: o julgamento essencial/util/superfluo é pessoal, e correções anteriores do usuário SEMPRE prevalecem.`
 
 export async function POST(request: Request) {
   return withClaude(request, async (client) => {
     let data: string
     let mediaType: string
+    let context = ''
     try {
       const body = await request.json()
       data = body.data
       mediaType = body.mediaType ?? 'image/jpeg'
+      context = typeof body.context === 'string' ? body.context.slice(0, 4000) : ''
     } catch {
       return Response.json({ error: 'Requisição inválida.' }, { status: 400 })
     }
@@ -77,7 +80,13 @@ export async function POST(request: Request) {
       system: SYSTEM,
       output_config: { format: { type: 'json_schema', schema: SCHEMA } },
       messages: [
-        { role: 'user', content: [fileBlock, { type: 'text', text: 'Leia e extraia as transações no formato pedido.' }] },
+        {
+          role: 'user',
+          content: [
+            fileBlock,
+            { type: 'text', text: `${context ? `CONTEXTO DO USUÁRIO:\n${context}\n\n` : ''}Leia e extraia as transações no formato pedido.` },
+          ],
+        },
       ],
     })
 
@@ -88,6 +97,6 @@ export async function POST(request: Request) {
       return Response.json({ error: 'Não achei transações nessa imagem/PDF. Tenta uma foto mais nítida do extrato.' }, { status: 422 })
     }
 
-    return Response.json({ transactions: parsed.transactions, insights: parsed.insights ?? [], source: parsed.source || 'Extrato' })
+    return Response.json({ transactions: parsed.transactions, verdict: parsed.verdict ?? '', source: parsed.source || 'Extrato' })
   })
 }

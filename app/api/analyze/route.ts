@@ -1,9 +1,9 @@
 import { withClaude } from '@/lib/claude-route'
 import { CATEGORIES } from '@/lib/types'
 
-// O cérebro: recebe transações cruas → Claude categoriza e julga cada uma →
-// devolve categoria, nível (essencial/útil/supérfluo), motivo e insights de onde
-// dá pra sobrar. A API key fica SÓ no servidor (via withClaude), nunca no front.
+// O cérebro: recebe transações cruas (+ contexto pessoal do usuário) → Claude
+// categoriza e julga cada uma → devolve categoria, nível, motivo e o veredito
+// da fatura. A API key fica SÓ no servidor (via withClaude), nunca no front.
 
 // Sonnet 4.6: mesmo modelo das leituras de foto (consistência). Categorização de
 // texto é leve, então o custo segue baixo (centavos). Trocar por 'claude-haiku-4-5'
@@ -40,10 +40,9 @@ const SCHEMA = {
         required: ['i', 'category', 'level', 'reason', 'recurring'],
       },
     },
-    insights: {
-      type: 'array',
-      items: { type: 'string' },
-      description: '3 a 5 frases diretas: onde está vazando dinheiro e como sobraria mais',
+    verdict: {
+      type: 'string',
+      description: 'veredito direto sobre ESTA fatura em 2-3 frases: total gasto, onde pesou mais, o que cortar e quanto sobraria. Valores em R$.',
     },
     source: {
       type: 'string',
@@ -54,7 +53,7 @@ const SCHEMA = {
       description: 'true se isto parece FATURA DE CARTÃO onde as COMPRAS aparecem com valor POSITIVO (convenção invertida, ex: CSV do cartão Nubank)',
     },
   },
-  required: ['items', 'insights', 'source', 'cartaoCredito'],
+  required: ['items', 'verdict', 'source', 'cartaoCredito'],
 }
 
 const SYSTEM = `Você é um analista financeiro pessoal brasileiro, direto e honesto.
@@ -75,16 +74,21 @@ COMPRAS com valor POSITIVO e pagamento/estorno negativo. Se a lista parecer isso
 e categorize as compras normalmente (NÃO como Renda). Pagamento de fatura é "Transferência".
 Se for extrato normal (gastos negativos), cartaoCredito=false.
 
-Depois, em "insights", aponte 3 a 5 coisas concretas: onde está vazando dinheiro,
-quais gastos supérfluos somam mais, e quanto daria pra sobrar cortando. Use valores em R$.
-Seja direto como um amigo que entende de dinheiro — sem enrolação.`
+Depois, em "verdict", dê o veredito desta fatura em 2-3 frases: total, onde pesou
+mais, o que cortar e quanto sobraria. Direto como um amigo que entende de dinheiro.
+
+Se houver um bloco CONTEXTO DO USUÁRIO na mensagem, use-o: o julgamento
+essencial/util/superfluo é pessoal (ex: quem trabalha com carro tem combustível
+essencial), e correções anteriores do usuário SEMPRE prevalecem.`
 
 export async function POST(request: Request) {
   return withClaude(request, async (client) => {
     let transactions: RawTransaction[]
+    let context = ''
     try {
       const body = await request.json()
       transactions = body.transactions
+      context = typeof body.context === 'string' ? body.context.slice(0, 4000) : ''
     } catch {
       return Response.json({ error: 'JSON inválido.' }, { status: 400 })
     }
@@ -111,7 +115,10 @@ export async function POST(request: Request) {
       system: SYSTEM,
       output_config: { format: { type: 'json_schema', schema: SCHEMA } },
       messages: [
-        { role: 'user', content: `Classifique estas ${transactions.length} transações:\n\n${list}` },
+        {
+          role: 'user',
+          content: `${context ? `CONTEXTO DO USUÁRIO:\n${context}\n\n` : ''}Classifique estas ${transactions.length} transações:\n\n${list}`,
+        },
       ],
     })
 
@@ -135,6 +142,6 @@ export async function POST(request: Request) {
       recurring: byIndex.get(i)?.recurring ?? false,
     }))
 
-    return Response.json({ transactions: result, insights: parsed.insights ?? [], source: parsed.source || 'Extrato' })
+    return Response.json({ transactions: result, verdict: parsed.verdict ?? '', source: parsed.source || 'Extrato' })
   })
 }
