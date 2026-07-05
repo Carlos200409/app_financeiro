@@ -124,6 +124,7 @@ export interface FinanceData {
   correcoes?: Correction[] // últimas correções do usuário (a IA aprende; cap 50)
   veredito?: MonthVerdict // veredito global do mês (on-demand, cacheado)
   metas?: Record<string, number> // teto mensal por categoria (orçamento simples)
+  waIds?: string[] // ids de mensagens do WhatsApp já processadas (dedupe de retry da Meta; cap 50)
 }
 
 // Veredito global de um mês: gerado sob demanda no Resumo e cacheado — só

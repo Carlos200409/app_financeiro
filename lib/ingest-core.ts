@@ -1,0 +1,195 @@
+import Anthropic from '@anthropic-ai/sdk'
+import { createClient } from '@supabase/supabase-js'
+import { buildAIContext } from './ai-context'
+import { applyImport, ImportPayload } from './apply-import'
+import { computeSummary } from './finance-summary'
+import {
+  EXTRATO_FOTO_SCHEMA, EXTRATO_FOTO_SYSTEM,
+  HOLERITE_SCHEMA, HOLERITE_SYSTEM,
+  TEXTO_GASTO_SCHEMA, TEXTO_GASTO_SYSTEM,
+} from './ai-prompts'
+import { fmt } from './format'
+import { FinanceData, Holerite } from './types'
+import { TABLE, ROW_ID } from './supabase'
+
+// Núcleo do registro por mensagem (WhatsApp): recebe foto de comprovante/
+// extrato/holerite ou texto ("gastei 50 no mercado"), a IA processa e salva
+// direto no Supabase (service role — só servidor). Usado pelo webhook
+// /api/whatsapp (Meta) e pelo /api/ingest (n8n/curl). Devolve o `resumo`
+// que vira a resposta no chat.
+
+const MODEL = 'claude-sonnet-4-6'
+
+export interface IngestInput {
+  kind: 'texto' | 'imagem'
+  text?: string
+  mediaBase64?: string
+  mediaType?: string
+  hint?: string
+  dedupeId?: string // id da mensagem (Meta re-tenta webhooks — não processar 2x)
+}
+
+type MediaType = 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif'
+
+function parseAI(message: Anthropic.Message): Record<string, unknown> {
+  const textBlock = message.content.find((b) => b.type === 'text')
+  return JSON.parse(textBlock && 'text' in textBlock ? textBlock.text : '{}')
+}
+
+export async function processMessage(input: IngestInput): Promise<{ ok: boolean; resumo: string; status: number }> {
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!serviceKey || !apiKey) {
+    return { ok: false, resumo: '❌ Servidor sem SUPABASE_SERVICE_ROLE_KEY/ANTHROPIC_API_KEY.', status: 500 }
+  }
+
+  const text = (input.text ?? '').slice(0, 2000)
+  const hint = (input.hint ?? '').slice(0, 500)
+  const mediaType = (input.mediaType ?? 'image/jpeg') as MediaType
+  if (input.kind === 'imagem' && !input.mediaBase64) return { ok: false, resumo: 'mediaBase64 vazio.', status: 400 }
+  if (input.kind === 'texto' && !text) return { ok: false, resumo: 'text vazio.', status: 400 }
+
+  const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceKey)
+  const { data: row, error: loadErr } = await supabase.from(TABLE).select('data').eq('id', ROW_ID).single()
+  if (loadErr || !row) return { ok: false, resumo: '❌ Não consegui carregar os dados.', status: 500 }
+  const data = row.data as FinanceData
+
+  // Dedupe: a Meta re-envia o webhook se a resposta demorar — não registrar 2x.
+  if (input.dedupeId && (data.waIds ?? []).includes(input.dedupeId)) {
+    return { ok: true, resumo: '', status: 200 }
+  }
+
+  const context = buildAIContext(data)
+  const installments = (data.installments ?? [])
+    .filter((p) => p.status === 'ATIVO')
+    .map((p) => ({ id: p.id, description: p.description, value: p.valuePerInstallment }))
+
+  const client = new Anthropic({ apiKey })
+  const save = async (next: FinanceData) => {
+    const withDedupe = input.dedupeId
+      ? { ...next, waIds: [...(next.waIds ?? []), input.dedupeId].slice(-50) }
+      : next
+    const { error } = await supabase
+      .from(TABLE)
+      .update({ data: withDedupe, updated_at: new Date().toISOString() })
+      .eq('id', ROW_ID)
+    if (error) throw new Error('Falha ao salvar no Supabase.')
+  }
+
+  try {
+    // ── Holerite por foto (legenda menciona "holerite") ──────────────────────
+    if (input.kind === 'imagem' && /holerite|contracheque|salario|salário/i.test(hint)) {
+      const message = await client.messages.create({
+        model: MODEL,
+        max_tokens: 1024,
+        system: HOLERITE_SYSTEM,
+        output_config: { format: { type: 'json_schema', schema: HOLERITE_SCHEMA } },
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: mediaType, data: input.mediaBase64! } },
+            { type: 'text', text: 'Leia este holerite e extraia os dados no formato pedido.' },
+          ],
+        }],
+      })
+      const parsed = parseAI(message)
+      if (!parsed.ehHolerite) {
+        return { ok: false, resumo: '❌ Isso não parece um holerite. Manda uma foto mais nítida.', status: 200 }
+      }
+      const h = { ...(parsed as unknown as Holerite), addedAt: new Date().toISOString() }
+      await save({ ...data, holerites: [...(data.holerites ?? []), h] })
+      return {
+        ok: true,
+        resumo: `✓ Holerite registrado: ${h.competencia || 'competência não lida'} (${h.tipo}) — líquido ${fmt(h.liquido)}.`,
+        status: 200,
+      }
+    }
+
+    // ── Comprovante/extrato/nota por foto ────────────────────────────────────
+    if (input.kind === 'imagem') {
+      const message = await client.messages.create({
+        model: MODEL,
+        max_tokens: 16000,
+        system: EXTRATO_FOTO_SYSTEM,
+        output_config: { format: { type: 'json_schema', schema: EXTRATO_FOTO_SCHEMA } },
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: mediaType, data: input.mediaBase64! } },
+            {
+              type: 'text',
+              text: `${context ? `CONTEXTO DO USUÁRIO:\n${context}\n\n` : ''}${
+                installments.length
+                  ? `PARCELAS ATIVAS (marque parcelaId se alguma transação for o pagamento de uma delas):\n${installments.map((p) => `- id=${p.id} | ${p.description} | R$ ${p.value.toFixed(2)}/mês`).join('\n')}\n\n`
+                  : ''
+              }${hint ? `LEGENDA DO USUÁRIO: ${hint}\n\n` : ''}Leia e extraia as transações no formato pedido.`,
+            },
+          ],
+        }],
+      })
+      const parsed = parseAI(message) as { ehExtrato?: boolean; transactions?: ImportPayload['transactions']; verdict?: string; source?: string }
+      if (!parsed.ehExtrato || !parsed.transactions?.length) {
+        return { ok: false, resumo: '❌ Não achei transações nessa imagem. Tenta uma foto mais nítida.', status: 200 }
+      }
+      const validIds = new Set(installments.map((p) => p.id))
+      const transactions = parsed.transactions.map((t) => ({
+        ...t,
+        parcelaId: t.parcelaId && validIds.has(t.parcelaId) ? t.parcelaId : undefined,
+      }))
+      const r = applyImport(data, { transactions, verdict: parsed.verdict, source: parsed.source || 'WhatsApp' })
+      await save(r.next)
+      const s = computeSummary(r.next, r.periodo)
+      const itens = transactions.length === 1
+        ? `${transactions[0].description} ${fmt(transactions[0].amount)}`
+        : `${transactions.length} itens`
+      return {
+        ok: true,
+        resumo: `✓ Registrado (${r.group.source}): ${itens}.${r.parcelasPagas.length ? ` ✓ Parcela paga: ${r.parcelasPagas.join(' · ')}.` : ''}${s ? ` Gastos do mês: ${fmt(s.gastos)}.` : ''}`,
+        status: 200,
+      }
+    }
+
+    // ── Texto ("gastei 50 no mercado ontem") ─────────────────────────────────
+    const hoje = new Date().toISOString().slice(0, 10)
+    const message = await client.messages.create({
+      model: MODEL,
+      max_tokens: 512,
+      system: TEXTO_GASTO_SYSTEM,
+      output_config: { format: { type: 'json_schema', schema: TEXTO_GASTO_SCHEMA } },
+      messages: [{
+        role: 'user',
+        content: `${context ? `CONTEXTO DO USUÁRIO:\n${context}\n\n` : ''}DATA ATUAL: ${hoje}\n\nMensagem: ${text}`,
+      }],
+    })
+    const parsed = parseAI(message) as { entendi?: boolean; date?: string; description?: string; amount?: number; category?: string; level?: string; recurring?: boolean }
+    if (!parsed.entendi || !parsed.description || typeof parsed.amount !== 'number') {
+      return { ok: false, resumo: '🤔 Não entendi como gasto. Tenta tipo: "gastei 50 no mercado" ou "recebi 200 de corrida".', status: 200 }
+    }
+    const r = applyImport(data, {
+      transactions: [{
+        date: parsed.date || hoje,
+        description: parsed.description,
+        amount: parsed.amount,
+        category: parsed.category || 'Outros',
+        level: (parsed.level as 'essencial' | 'util' | 'superfluo') || 'util',
+        reason: 'registrado pelo WhatsApp',
+        recurring: !!parsed.recurring,
+      }],
+      source: 'WhatsApp',
+    })
+    await save(r.next)
+    const s = computeSummary(r.next, r.periodo)
+    return {
+      ok: true,
+      resumo: `✓ Registrado: ${parsed.description} ${fmt(parsed.amount)} (${parsed.category}/${parsed.level}).${s ? ` Gastos do mês: ${fmt(s.gastos)}.` : ''}`,
+      status: 200,
+    }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    if (/credit balance is too low/i.test(msg)) {
+      return { ok: false, resumo: '❌ Créditos da IA acabaram — recarrega em console.anthropic.com.', status: 402 }
+    }
+    console.error('ingest-core error', e)
+    return { ok: false, resumo: '❌ Erro ao processar. Tenta de novo.', status: 500 }
+  }
+}
