@@ -95,10 +95,11 @@ export function computeSummary(data: FinanceData | null, period?: string | null)
 
   if (entries.length === 0) return null
 
-  // Transferência positiva (ex: pagamento de fatura do cartão) não é renda —
-  // é dinheiro trocando de bolso. Fica neutra (nem renda, nem gasto).
+  // Transferência é NEUTRA nos dois sentidos: pagamento de fatura no extrato
+  // não é gasto (o gasto real são as compras da fatura, já contadas) e recebida
+  // não é renda. Evita duplicar quando se importa fatura + extrato do mesmo mês.
   const positives = entries.filter((e) => e.amount > 0 && e.category !== 'Transferência')
-  const negatives = entries.filter((e) => e.amount < 0)
+  const negatives = entries.filter((e) => e.amount < 0 && e.category !== 'Transferência')
 
   const rendaFixa = positives.filter((e) => e.recurring).reduce((a, e) => a + e.amount, 0)
   const rendaVariavel = positives.filter((e) => !e.recurring).reduce((a, e) => a + e.amount, 0)

@@ -68,6 +68,12 @@ Para cada transação devolva:
 Entradas de dinheiro (valor positivo) são category "Renda" e level "essencial".
 Salário (recorrente) é recurring=true; renda avulsa/variável (corrida, freela, venda) é recurring=false.
 
+"Transferência" é SÓ dinheiro trocando de bolso da própria pessoa: pagamento de
+fatura de cartão, transferência entre contas próprias, aporte pra corretora.
+(Essas são neutras no cálculo — não contam como renda nem gasto.)
+Pix/TED PAGANDO alguém ou comprando algo é GASTO REAL: use a categoria da compra
+(Alimentação, Transporte...), nunca "Transferência".
+
 ATENÇÃO — FATURA DE CARTÃO: alguns exports de cartão (ex: CSV do cartão Nubank) listam
 COMPRAS com valor POSITIVO e pagamento/estorno negativo. Se a lista parecer isso
 (maioria positiva, descrições de compras em estabelecimentos), retorne cartaoCredito=true

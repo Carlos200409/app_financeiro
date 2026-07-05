@@ -49,6 +49,7 @@ const SYSTEM = `Você lê extratos bancários, faturas de cartão, recibos e not
 - Categorize cada uma: category (da lista), level (essencial/util/superfluo), recurring (repete todo mês? salário/assinatura/aluguel).
 - Numa NOTA FISCAL de uma compra só: registre a compra (estabelecimento + total) e liste os itens principais no campo "reason".
 - Entradas positivas = category "Renda", level "essencial".
+- "Transferência" é SÓ dinheiro trocando de bolso da própria pessoa (pagamento de fatura de cartão, transferência entre contas próprias, aporte pra corretora) — neutra no cálculo. Pix/TED pagando alguém ou comprando algo é GASTO REAL: use a categoria da compra, nunca "Transferência".
 - ⚠️ HOLERITE/CONTRACHEQUE: se a imagem for um holerite (tem salário, vencimentos e descontos tipo INSS/IRRF/FGTS), NÃO liste os descontos como gastos — eles são retidos na fonte, a pessoa NUNCA recebe nem gasta esse valor. Registre APENAS o valor LÍQUIDO como UMA entrada de Renda (amount positivo, category "Renda"). Desconto de folha nunca é saída/gasto.
 - Se NÃO houver transação nenhuma (foto aleatória), retorne ehExtrato=false e transactions vazio.
 - Em "verdict", o veredito desta fatura em 2-3 frases: total, onde pesou mais, o que cortar. Valores em R$.

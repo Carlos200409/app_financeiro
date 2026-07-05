@@ -51,6 +51,25 @@ const tx = (over: Record<string, unknown>) => ({
   assert.equal(s.gastos, 100)
 }
 
+// 3b. Fatura + extrato do mesmo mês NÃO duplicam: o pagamento da fatura no
+// extrato (Transferência negativa) é neutro — só as compras contam.
+{
+  const s = computeSummary({
+    ...base,
+    imports: [
+      { id: 'fatura', source: 'Cartão Bradesco', importedAt: '', transactions: [
+        tx({ amount: -2483, category: 'Compras' }),
+      ] },
+      { id: 'extrato', source: 'Extrato', importedAt: '', transactions: [
+        tx({ amount: -2483, category: 'Transferência', description: 'Pagamento fatura Bradesco' }),
+        tx({ amount: 5000, category: 'Renda', recurring: true, description: 'Salário' }),
+      ] },
+    ],
+  }, '2026-06')!
+  assert.equal(s.gastos, 2483, `fatura+pagamento não podem duplicar: veio ${s.gastos}`)
+  assert.equal(s.renda, 5000)
+}
+
 // 4. Filtro por mês continua funcionando
 {
   const s = computeSummary({
