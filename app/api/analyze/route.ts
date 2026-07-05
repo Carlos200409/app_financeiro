@@ -36,8 +36,9 @@ const SCHEMA = {
           level: { type: 'string', enum: LEVELS as unknown as string[] },
           reason: { type: 'string', description: 'motivo curto (máx ~12 palavras)' },
           recurring: { type: 'boolean', description: 'true se parece cobrança/renda que se repete todo mês (salário, assinatura, aluguel, mensalidade)' },
+          parcelaId: { type: 'string', description: 'se esta transação for o pagamento de uma das PARCELAS ATIVAS listadas na mensagem, o id dela; senão string vazia' },
         },
-        required: ['i', 'category', 'level', 'reason', 'recurring'],
+        required: ['i', 'category', 'level', 'reason', 'recurring', 'parcelaId'],
       },
     },
     verdict: {
@@ -68,6 +69,12 @@ Para cada transação devolva:
 Entradas de dinheiro (valor positivo) são category "Renda" e level "essencial".
 Salário (recorrente) é recurring=true; renda avulsa/variável (corrida, freela, venda) é recurring=false.
 
+PARCELAS ATIVAS: se a mensagem listar parcelas ativas (financiamentos etc.) e uma
+transação parecer o pagamento de uma delas (descrição de boleto/financeira e valor
+próximo — pode vir MENOR por desconto de pontualidade, tolere ~20%), retorne o
+parcelaId dela nessa transação. É gasto normal (categoria da compra, ex Transporte
+pra carro) — o id só serve pra marcar a parcela como paga.
+
 "Transferência" é SÓ dinheiro trocando de bolso da própria pessoa: pagamento de
 fatura de cartão, transferência entre contas próprias, aporte pra corretora.
 (Essas são neutras no cálculo — não contam como renda nem gasto.)
@@ -91,10 +98,12 @@ export async function POST(request: Request) {
   return withClaude(request, async (client) => {
     let transactions: RawTransaction[]
     let context = ''
+    let installments: { id: string; description: string; value: number }[] = []
     try {
       const body = await request.json()
       transactions = body.transactions
       context = typeof body.context === 'string' ? body.context.slice(0, 4000) : ''
+      installments = Array.isArray(body.installments) ? body.installments.slice(0, 20) : []
     } catch {
       return Response.json({ error: 'JSON inválido.' }, { status: 400 })
     }
@@ -123,7 +132,11 @@ export async function POST(request: Request) {
       messages: [
         {
           role: 'user',
-          content: `${context ? `CONTEXTO DO USUÁRIO:\n${context}\n\n` : ''}Classifique estas ${transactions.length} transações:\n\n${list}`,
+          content: `${context ? `CONTEXTO DO USUÁRIO:\n${context}\n\n` : ''}${
+            installments.length
+              ? `PARCELAS ATIVAS (marque parcelaId se alguma transação for o pagamento de uma delas):\n${installments.map((p) => `- id=${p.id} | ${p.description} | R$ ${p.value.toFixed(2)}/mês`).join('\n')}\n\n`
+              : ''
+          }Classifique estas ${transactions.length} transações:\n\n${list}`,
         },
       ],
     })
@@ -132,8 +145,9 @@ export async function POST(request: Request) {
     const parsed = JSON.parse(textBlock && 'text' in textBlock ? textBlock.text : '{}')
 
     // Junta o julgamento do Claude de volta com os dados originais (por índice).
-    const byIndex = new Map<number, { category: string; level: string; reason: string; recurring: boolean }>()
+    const byIndex = new Map<number, { category: string; level: string; reason: string; recurring: boolean; parcelaId?: string }>()
     for (const it of parsed.items ?? []) byIndex.set(it.i, it)
+    const validIds = new Set(installments.map((p) => p.id))
 
     // Fatura de cartão com convenção invertida: compra positiva vira gasto
     // (negativo); linha negativa (pagamento/estorno) vira positiva — e como o
@@ -146,6 +160,7 @@ export async function POST(request: Request) {
       level: byIndex.get(i)?.level ?? 'util',
       reason: byIndex.get(i)?.reason ?? '',
       recurring: byIndex.get(i)?.recurring ?? false,
+      parcelaId: validIds.has(byIndex.get(i)?.parcelaId ?? '') ? byIndex.get(i)!.parcelaId : undefined,
     }))
 
     return Response.json({ transactions: result, verdict: parsed.verdict ?? '', source: parsed.source || 'Extrato' })

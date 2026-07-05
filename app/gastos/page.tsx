@@ -10,7 +10,20 @@ import { computeSummary } from '@/lib/finance-summary'
 import { LEVEL_META as LEVEL } from '@/lib/types'
 
 export default function GastosPage() {
-  const { data, currentMonth } = useData()
+  const { data, setData, currentMonth } = useData()
+
+  // Ajuste manual do contador de parcelas (a IA marca sozinha ao importar o
+  // extrato; isto é a rede de segurança se ela errar ou você pagar por fora).
+  const ajustarParcela = (id: string, delta: number) =>
+    setData((prev) => ({
+      ...prev,
+      installments: (prev.installments ?? []).map((p) => {
+        if (p.id !== id) return p
+        const paid = Math.max(0, Math.min(p.paid + delta, p.totalInstallments))
+        const remaining = p.totalInstallments - paid
+        return { ...p, paid, remaining, status: remaining <= 0 ? 'QUITADO' as const : 'ATIVO' as const }
+      }),
+    }))
   const s = useMemo(() => computeSummary(data, currentMonth), [data?.imports, data?.holerites, data?.transactions, currentMonth])
 
   const assinaturas = useMemo(
@@ -108,12 +121,16 @@ export default function GastosPage() {
               </h2>
               <div className="divide-y divide-[#1a1a2e]">
                 {parcelas.map((p) => (
-                  <div key={p.id} className="flex justify-between py-2.5 text-sm">
-                    <div className="min-w-0">
+                  <div key={p.id} className="flex items-center justify-between py-2.5 text-sm gap-2">
+                    <div className="min-w-0 flex-1">
                       <p className="text-[#b0b0d0] truncate">{p.description}</p>
                       <p className="text-xs text-[#505070]">{p.paid}/{p.totalInstallments} pagas · faltam {p.remaining}x ({fmt(p.remaining * p.valuePerInstallment)})</p>
                     </div>
-                    <span className="text-white font-medium shrink-0 ml-3">{fmt(p.valuePerInstallment)}/mês</span>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button onClick={() => ajustarParcela(p.id, -1)} title="Desmarcar 1 paga" className="w-6 h-6 rounded-lg bg-[#0d0d1a] border border-[#1a1a2e] text-[#7070a0] hover:text-white text-xs leading-none">−</button>
+                      <button onClick={() => ajustarParcela(p.id, +1)} title="Marcar 1 paga" className="w-6 h-6 rounded-lg bg-[#0d0d1a] border border-[#1a1a2e] text-[#7070a0] hover:text-white text-xs leading-none">+</button>
+                    </div>
+                    <span className="text-white font-medium shrink-0">{fmt(p.valuePerInstallment)}/mês</span>
                   </div>
                 ))}
               </div>

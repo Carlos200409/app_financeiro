@@ -78,6 +78,7 @@ export interface AnalyzedTransaction {
   level: SpendingLevel
   reason: string
   recurring: boolean // cobrança/renda mensal recorrente (salário, assinatura, aluguel)
+  parcelaId?: string // id da Installment que esta transação pagou (IA detecta)
 }
 
 // Um extrato/fatura importado = um grupo com itens. Ex: "Cartão Bradesco".

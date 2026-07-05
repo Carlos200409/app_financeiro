@@ -19,8 +19,16 @@ export default function AnalisePage() {
   const [error, setError] = useState<string | null>(null)
   const [holerite, setHolerite] = useState<Holerite | null>(null)
   const [imported, setImported] = useState<string | null>(null)
+  const [parcelasPagas, setParcelasPagas] = useState<string[]>([])
 
-  const switchMode = (m: Mode) => { setMode(m); setError(null); setHolerite(null); setImported(null) }
+  const switchMode = (m: Mode) => { setMode(m); setError(null); setHolerite(null); setImported(null); setParcelasPagas([]) }
+
+  // Parcelas ativas vão junto na análise — a IA detecta o pagamento delas no
+  // extrato (mesmo com desconto de pontualidade) e o app marca como paga.
+  const activeInstallments = () =>
+    (data?.installments ?? [])
+      .filter((p) => p.status === 'ATIVO')
+      .map((p) => ({ id: p.id, description: p.description, value: p.valuePerInstallment }))
 
   // Cria uma fatura (grupo com itens + veredito) a partir do resultado da IA.
   // Updater funcional: uploads em sequência não se sobrescrevem.
@@ -35,7 +43,21 @@ export default function AnalisePage() {
       if (!confirm(`Esse extrato parece já importado (${repetidas} de ${transactions.length} itens idênticos). Importar mesmo assim?`)) return
     }
     const group: ImportGroup = { id: `imp_${base}`, source, importedAt: new Date().toISOString(), transactions, verdict: payload.verdict || undefined }
-    setData((prev) => ({ ...prev, imports: [...(prev.imports ?? []), group] }))
+    // Parcelas que a IA detectou como pagas neste extrato → avança o contador.
+    const pagas = [...new Set(transactions.map((t) => t.parcelaId).filter((p): p is string => !!p))]
+    const nomesPagas: string[] = []
+    setData((prev) => ({
+      ...prev,
+      imports: [...(prev.imports ?? []), group],
+      installments: (prev.installments ?? []).map((p) => {
+        if (!pagas.includes(p.id) || p.status !== 'ATIVO') return p
+        const paid = Math.min(p.paid + 1, p.totalInstallments)
+        const remaining = p.totalInstallments - paid
+        nomesPagas.push(`${p.description} (${paid}/${p.totalInstallments})`)
+        return { ...p, paid, remaining, status: remaining <= 0 ? 'QUITADO' as const : 'ATIVO' as const }
+      }),
+    }))
+    setParcelasPagas(nomesPagas)
     // Pula pro período dos dados importados — senão o Resumo abre no mês de
     // hoje (vazio) e parece que o import não funcionou.
     const periodos = transactions
@@ -50,7 +72,7 @@ export default function AnalisePage() {
     if (!raw.length) { setError('Não achei transações nesse arquivo. É mesmo CSV/OFX?'); return }
     setLoading(true); setError(null); setImported(null)
     try {
-      const res = await fetch('/api/analyze', { method: 'POST', headers: await authHeaders(), body: JSON.stringify({ transactions: raw, context: buildAIContext(data) }) })
+      const res = await fetch('/api/analyze', { method: 'POST', headers: await authHeaders(), body: JSON.stringify({ transactions: raw, context: buildAIContext(data), installments: activeInstallments() }) })
       const payload = await res.json()
       if (!res.ok) { setError(payload.error ?? 'Erro ao analisar.'); return }
       applyResult(payload)
@@ -69,7 +91,7 @@ export default function AnalisePage() {
         return
       }
       const { base64, mediaType } = isPdf ? await fileToBase64(file) : await fileToScaledBase64(file)
-      const res = await fetch('/api/extrato-foto', { method: 'POST', headers: await authHeaders(), body: JSON.stringify({ data: base64, mediaType, context: buildAIContext(data) }) })
+      const res = await fetch('/api/extrato-foto', { method: 'POST', headers: await authHeaders(), body: JSON.stringify({ data: base64, mediaType, context: buildAIContext(data), installments: activeInstallments() }) })
       const payload = await res.json()
       if (!res.ok) { setError(payload.error ?? 'Erro ao ler.'); return }
       applyResult(payload)
@@ -156,6 +178,9 @@ export default function AnalisePage() {
       {imported && !loading && (
         <div className="flex items-center gap-2 flex-wrap bg-[#4ade80]/10 border border-[#4ade80]/30 rounded-xl p-3 mt-4 text-sm text-[#4ade80]">
           <CheckCircle2 className="w-4 h-4 shrink-0" /> &ldquo;{imported}&rdquo; importado e categorizado.
+          {parcelasPagas.length > 0 && (
+            <span className="w-full text-[#b0f0d0]">✓ Parcela marcada como paga: {parcelasPagas.join(' · ')}</span>
+          )}
           <span className="ml-auto flex gap-2">
             <Link href="/gastos" className="inline-flex items-center gap-1 font-medium text-white bg-[#4ade80]/20 hover:bg-[#4ade80]/30 rounded-lg px-3 py-1 transition-colors">
               Ver e editar em Gastos <ArrowRight className="w-3.5 h-3.5" />
