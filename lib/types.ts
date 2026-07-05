@@ -103,6 +103,16 @@ export interface FinanceData {
   holerites?: Holerite[] // holerites lidos por foto (renda fixa)
   sobreMim?: string // contexto pessoal que o usuário escreve pra IA julgar melhor
   correcoes?: Correction[] // últimas correções do usuário (a IA aprende; cap 50)
+  veredito?: MonthVerdict // veredito global do mês (on-demand, cacheado)
+}
+
+// Veredito global de um mês: gerado sob demanda no Resumo e cacheado — só
+// re-chama a IA quando o usuário pede.
+export interface MonthVerdict {
+  monthKey: string // mês a que se refere (ex: 'JUN')
+  verdict: string
+  acoes: string[] // 3 ações concretas
+  geradoEm: string
 }
 
 export const MONTHS: MonthKey[] = ['JAN','FEV','MAR','ABR','MAI','JUN','JUL','AGO','SET','OUT','NOV','DEZ']
