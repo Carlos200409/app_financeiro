@@ -1,4 +1,5 @@
 import { withClaude } from '@/lib/claude-route'
+import { HOLERITE_SCHEMA as SCHEMA, HOLERITE_SYSTEM as SYSTEM } from '@/lib/ai-prompts'
 
 // Lê holerite por foto com Claude vision. Devolve estruturado: competência,
 // tipo (adiantamento/fechamento), bruto, descontos, líquido. A key fica só no
@@ -11,40 +12,6 @@ const MODEL = 'claude-sonnet-4-6'
 
 // Leitura por visão demora; o default do Vercel corta antes.
 export const maxDuration = 60
-
-const SCHEMA = {
-  type: 'object',
-  additionalProperties: false,
-  properties: {
-    ehHolerite: { type: 'boolean', description: 'true só se a imagem for mesmo um holerite/contracheque/recibo de pagamento' },
-    competencia: { type: 'string', description: 'mês/ano de referência, ex "Junho/2026". Vazio se não achar.' },
-    tipo: { type: 'string', enum: ['adiantamento', 'fechamento', 'completo', 'outro'], description: 'adiantamento (parte do salário), fechamento (o resto), completo (salário inteiro num recibo só), ou outro' },
-    empregador: { type: 'string', description: 'nome da empresa/empregador. Vazio se não achar.' },
-    salarioBase: { type: 'number', description: 'salário base cheio, se aparecer. 0 se não achar.' },
-    bruto: { type: 'number', description: 'total de vencimentos DESTE recibo' },
-    descontos: { type: 'number', description: 'total de descontos DESTE recibo' },
-    liquido: { type: 'number', description: 'valor líquido recebido neste recibo' },
-    confianca: { type: 'string', enum: ['alta', 'media', 'baixa'], description: 'quão confiante você está na leitura' },
-  },
-  required: ['ehHolerite', 'competencia', 'tipo', 'empregador', 'salarioBase', 'bruto', 'descontos', 'liquido', 'confianca'],
-}
-
-const SYSTEM = `Você lê holerites (contracheques) brasileiros a partir de uma foto e extrai os números.
-
-Regras:
-- A foto pode estar torta, dobrada ou girada. Leia mesmo assim.
-- Entenda a ESTRUTURA, não faça OCR cego:
-  - "tipo": se o recibo diz "Adiantamento", é tipo "adiantamento" (é só uma parte do salário do mês). Se é o fechamento/2ª parcela, "fechamento". Se é o salário inteiro num recibo só, "completo".
-  - "bruto" = total de vencimentos DESTE recibo (não o salário base).
-  - "liquido" = o valor que a pessoa efetivamente recebeu neste recibo.
-  - "salarioBase" = o salário cheio, se estiver escrito (mesmo que este recibo seja só um adiantamento).
-- FECHAMENTO com desconto de adiantamento: no holerite de fechamento, o
-  "adiantamento salarial" aparece como DESCONTO — isso NÃO é imposto nem gasto,
-  é só a parte do salário que a pessoa JÁ recebeu antes. O "liquido" deste
-  recibo é o que ela recebe AGORA (o app soma adiantamento + fechamento da
-  mesma competência pra chegar no salário total do mês). Tipo = "fechamento".
-- Se NÃO for um holerite (extrato, nota fiscal, foto qualquer), retorne ehHolerite=false e zere os números.
-- Números em reais, use ponto decimal (2000.00, não "2.000,00").`
 
 export async function POST(request: Request) {
   return withClaude(request, async (client) => {

@@ -6,9 +6,10 @@ import { parseExtrato, RawTransaction } from '@/lib/extrato-parser'
 import { fileToScaledBase64, fileToBase64 } from '@/lib/image'
 import { authHeaders } from '@/lib/api'
 import { buildAIContext } from '@/lib/ai-context'
+import { applyImport, dupFraction, ImportPayload } from '@/lib/apply-import'
 import { fmt } from '@/lib/format'
 import { useData } from '@/lib/store'
-import { AnalyzedTransaction, Holerite, ImportGroup } from '@/lib/types'
+import { Holerite } from '@/lib/types'
 
 type Mode = 'extrato' | 'holerite'
 
@@ -30,42 +31,26 @@ export default function AnalisePage() {
       .filter((p) => p.status === 'ATIVO')
       .map((p) => ({ id: p.id, description: p.description, value: p.valuePerInstallment }))
 
-  // Cria uma fatura (grupo com itens + veredito) a partir do resultado da IA.
-  // Updater funcional: uploads em sequência não se sobrescrevem.
-  const applyResult = useCallback((payload: { transactions: Omit<AnalyzedTransaction, 'id'>[]; verdict?: string; source?: string }) => {
-    const base = Date.now()
-    const transactions: AnalyzedTransaction[] = payload.transactions.map((t, i) => ({ ...t, id: `tx_${base}_${i}` }))
-    const source = payload.source || 'Extrato'
+  // Cria uma fatura (grupo + veredito + parcelas pagas) via helper compartilhado
+  // com o ingest do WhatsApp. Updater funcional: uploads não se sobrescrevem.
+  const applyResult = useCallback((payload: ImportPayload) => {
     // Anti-duplicação: subir o mesmo extrato 2x dobraria os números em silêncio.
-    const existentes = new Set((data?.imports ?? []).flatMap((g) => g.transactions).map((t) => `${t.date}|${t.amount}|${t.description}`))
-    const repetidas = transactions.filter((t) => existentes.has(`${t.date}|${t.amount}|${t.description}`)).length
-    if (transactions.length >= 3 && repetidas / transactions.length > 0.7) {
-      if (!confirm(`Esse extrato parece já importado (${repetidas} de ${transactions.length} itens idênticos). Importar mesmo assim?`)) return
+    if (data && payload.transactions.length >= 3 && dupFraction(data, payload.transactions) > 0.7) {
+      if (!confirm('Esse extrato parece já importado (itens idênticos aos existentes). Importar mesmo assim?')) return
     }
-    const group: ImportGroup = { id: `imp_${base}`, source, importedAt: new Date().toISOString(), transactions, verdict: payload.verdict || undefined }
-    // Parcelas que a IA detectou como pagas neste extrato → avança o contador.
-    const pagas = [...new Set(transactions.map((t) => t.parcelaId).filter((p): p is string => !!p))]
-    const nomesPagas: string[] = []
-    setData((prev) => ({
-      ...prev,
-      imports: [...(prev.imports ?? []), group],
-      installments: (prev.installments ?? []).map((p) => {
-        if (!pagas.includes(p.id) || p.status !== 'ATIVO') return p
-        const paid = Math.min(p.paid + 1, p.totalInstallments)
-        const remaining = p.totalInstallments - paid
-        nomesPagas.push(`${p.description} (${paid}/${p.totalInstallments})`)
-        return { ...p, paid, remaining, status: remaining <= 0 ? 'QUITADO' as const : 'ATIVO' as const }
-      }),
-    }))
-    setParcelasPagas(nomesPagas)
+    let pagas: string[] = []
+    let periodo: string | null = null
+    setData((prev) => {
+      const r = applyImport(prev, payload)
+      pagas = r.parcelasPagas
+      periodo = r.periodo
+      return r.next
+    })
+    setParcelasPagas(pagas)
     // Pula pro período dos dados importados — senão o Resumo abre no mês de
     // hoje (vazio) e parece que o import não funcionou.
-    const periodos = transactions
-      .map((t) => t.date.match(/^\d{4}-\d{2}/)?.[0])
-      .filter((p): p is string => !!p)
-      .sort()
-    if (periodos.length) setCurrentMonth(periodos[periodos.length - 1])
-    setImported(source)
+    if (periodo) setCurrentMonth(periodo)
+    setImported(payload.source || 'Extrato')
   }, [setData, setCurrentMonth, data])
 
   const analyze = useCallback(async (raw: RawTransaction[]) => {
