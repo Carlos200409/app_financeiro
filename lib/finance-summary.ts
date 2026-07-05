@@ -94,7 +94,9 @@ export function computeSummary(data: FinanceData | null, period?: string | null)
   const holeriteScope = holerites
     .filter((h) => !period || periodFromCompetencia(h.competencia) === period)
     .reduce((a, h) => a + (h.liquido || 0), 0)
-  const temSalario = entries.some((e) => e.amount > 0 && e.recurring)
+  // Transferência recorrente (ex: pagamento mensal de fatura) NÃO é salário —
+  // sem essa exclusão, ela mascarava o holerite e a renda do mês zerava.
+  const temSalario = entries.some((e) => e.amount > 0 && e.recurring && e.category !== 'Transferência')
   if (!temSalario && holeriteScope > 0) {
     entries.push({ amount: holeriteScope, category: 'Renda', level: 'essencial', recurring: true, period: period ?? null })
   }

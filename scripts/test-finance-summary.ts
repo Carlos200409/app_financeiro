@@ -41,6 +41,19 @@ const tx = (over: Record<string, unknown>) => ({
   assert.equal(s.rendaFixa, 4012)
 }
 
+// 1c. Transferência positiva RECORRENTE (pagamento mensal de fatura) não
+// mascara o holerite (bug real: renda do mês zerava).
+{
+  const s = computeSummary({
+    ...base,
+    holerites: [{ competencia: 'Junho/2026', tipo: 'adiantamento', empregador: '', salarioBase: 5000, bruto: 2000, descontos: 88, liquido: 1912, confianca: 'alta', addedAt: '' }],
+    imports: [{ id: 'g1', source: 'Cartão', importedAt: '', transactions: [
+      tx({ amount: 2483.18, category: 'Transferência', recurring: true, description: 'PAGTO. POR DEB EM C/C' }),
+    ] }],
+  }, '2026-06')!
+  assert.equal(s.renda, 1912, `holerite não pode ser mascarado por transferência recorrente: veio ${s.renda}`)
+}
+
 // 2. Holerite é pulado quando JÁ existe salário (renda recorrente) no mês
 {
   const s = computeSummary({
