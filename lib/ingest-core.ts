@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { buildAIContext } from './ai-context'
 import { applyImport, ImportPayload } from './apply-import'
 import { computeSummary } from './finance-summary'
+import { estimatedLeak, LeakReport } from './leaks'
 import {
   EXTRATO_FOTO_SCHEMA, EXTRATO_FOTO_SYSTEM,
   HOLERITE_SCHEMA, HOLERITE_SYSTEM,
@@ -44,6 +45,17 @@ const METODO_LABEL: Record<string, string> = {
 function dataBR(iso?: string): string {
   const m = (iso ?? '').match(/^(\d{4})-(\d{2})-(\d{2})/)
   return m ? `${m[3]}/${m[2]}/${m[1]}` : ''
+}
+
+// Relatório de caça-vazamento pro WhatsApp — determinístico, sem IA (custo zero).
+function leakCard(l: LeakReport): string {
+  if (l.total <= 0) return '✅ Não achei desperdício óbvio esse mês. Tá indo bem!'
+  const linhas = [`💸 Achei ${fmt(l.total)} vazando esse mês:`]
+  if (l.assinaturas.total > 0) linhas.push(`📌 ${fmt(l.assinaturas.total)} em assinaturas (${l.assinaturas.items.length}) — ${l.assinaturas.items.slice(0, 4).map((t) => t.description).join(', ')}`)
+  if (l.besteira > 0) linhas.push(`🔥 ${fmt(l.besteira)} em besteira (supérfluo)`)
+  if (l.duplicadas.total > 0) linhas.push(`⚠️ ${fmt(l.duplicadas.total)} em cobranças duplicadas: ${l.duplicadas.groups.slice(0, 3).map((g) => g.description).join(', ')}`)
+  for (const c of l.creep.slice(0, 2)) linhas.push(`📈 ${c.category} subiu ${(c.deltaPct * 100).toFixed(0)}% vs mês passado`)
+  return linhas.join('\n')
 }
 
 // Padrão de resposta no WhatsApp: item | valor | pagamento | categoria | data.
@@ -176,6 +188,11 @@ export async function processMessage(input: IngestInput): Promise<{ ok: boolean;
         s ? `———\nGastos do mês: ${fmt(s.gastos)}` : '',
       ].filter(Boolean).join('\n')
       return { ok: true, resumo: `✓ Registrado\n${corpo}${rodape ? `\n${rodape}` : ''}`, status: 200 }
+    }
+
+    // ── "onde vaza meu dinheiro?" → relatório determinístico (sem IA) ────────
+    if (/vaza|vazamento|desperd|jogando.*fora|onde.*(dinheiro|grana|gast)/i.test(text)) {
+      return { ok: true, resumo: leakCard(estimatedLeak(data, new Date().toISOString().slice(0, 7))), status: 200 }
     }
 
     // ── Texto ("gastei 50 no mercado ontem") ─────────────────────────────────

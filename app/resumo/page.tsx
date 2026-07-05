@@ -8,6 +8,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGri
 import { useData } from '@/lib/store'
 import { fmt, fmtShort } from '@/lib/format'
 import { computeSummary, previousPeriod, periodsWithData } from '@/lib/finance-summary'
+import { estimatedLeak } from '@/lib/leaks'
 import { periodLabel } from '@/lib/types'
 import { buildAIContext } from '@/lib/ai-context'
 import { authHeaders } from '@/lib/api'
@@ -24,6 +25,12 @@ export default function ResumoPage() {
   const variacaoGastos = s && sAnterior && sAnterior.gastos > 0
     ? ((s.gastos - sAnterior.gastos) / sAnterior.gastos) * 100
     : null
+
+  // Caça-vazamento — determinístico (lib/leaks). O número R$ que dói.
+  const vaza = useMemo(
+    () => (currentMonth ? estimatedLeak(data, currentMonth) : null),
+    [data?.imports, data?.holerites, data?.transactions, currentMonth],
+  )
 
   // Metas estouradas no período (alerta no topo).
   const metasEstouradas = useMemo(() => {
@@ -199,6 +206,28 @@ export default function ResumoPage() {
               </p>
             )}
           </div>
+          )}
+
+          {/* Caça-vazamento — o número que dói (determinístico) */}
+          {vaza && vaza.total > 0 && (
+            <div className="bg-[#f87171]/6 border border-[#f87171]/25 rounded-2xl p-5 mt-6">
+              <h2 className="text-sm font-semibold mb-1 text-[#f87171]">💸 Onde vaza dinheiro</h2>
+              <p className="text-2xl font-bold text-white">{fmt(vaza.total)}<span className="text-sm font-normal text-[#7070a0]"> em desperdício matável</span></p>
+              <div className="mt-4 space-y-2 text-sm">
+                {vaza.assinaturas.total > 0 && (
+                  <p className="text-[#b0b0d0]">📌 <span className="text-white font-medium">{fmt(vaza.assinaturas.total)}</span> em assinaturas ({vaza.assinaturas.items.length}) — {vaza.assinaturas.items.slice(0, 4).map((t) => t.description).join(', ')}{vaza.assinaturas.items.length > 4 ? '…' : ''}</p>
+                )}
+                {vaza.besteira > 0 && (
+                  <p className="text-[#b0b0d0]">🔥 <span className="text-white font-medium">{fmt(vaza.besteira)}</span> em besteira (gasto supérfluo)</p>
+                )}
+                {vaza.duplicadas.total > 0 && (
+                  <p className="text-[#f87171]">⚠️ <span className="font-medium">{fmt(vaza.duplicadas.total)}</span> em cobranças duplicadas: {vaza.duplicadas.groups.slice(0, 3).map((g) => g.description).join(', ')}</p>
+                )}
+                {vaza.creep.slice(0, 3).map((c) => (
+                  <p key={c.category} className="text-[#fbbf24]">📈 <span className="font-medium">{c.category}</span> subiu {(c.deltaPct * 100).toFixed(0)}% vs mês passado ({fmt(c.anterior)} → {fmt(c.atual)})</p>
+                ))}
+              </div>
+            </div>
           )}
 
           {/* Veredito global do mês (IA, on-demand, cacheado) */}
