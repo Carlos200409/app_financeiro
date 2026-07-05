@@ -81,10 +81,17 @@ export async function POST(request: Request) {
   const phoneNumberId = value?.metadata?.phone_number_id
   if (!msg || !phoneNumberId) return ok() // status de entrega etc — ignora
 
+  // Allowlist: SÓ o dono registra gastos. A Meta manda número BR ora com ora
+  // sem o 9 extra (5547 9xxxx-xxxx vs 5547 xxxx-xxxx) — normaliza os dois lados:
+  // remove DDI 55 e o 9 de celular, compara DDD + linha de 8 dígitos.
+  const normBR = (n: string) => {
+    let d = n.replace(/\D/g, '')
+    if (d.startsWith('55')) d = d.slice(2)
+    if (d.length === 11 && d[2] === '9') d = d.slice(0, 2) + d.slice(3)
+    return d
+  }
   const from = (msg.from ?? '').replace(/\D/g, '')
-  // Allowlist: SÓ o dono registra gastos (compara os últimos 11 dígitos —
-  // números BR às vezes vêm com/sem o 9 extra).
-  if (!from || (from.slice(-11) !== allowed.slice(-11) && from !== allowed)) {
+  if (!from || normBR(from) !== normBR(allowed)) {
     console.warn('whatsapp: mensagem de número não autorizado', from)
     return ok()
   }
