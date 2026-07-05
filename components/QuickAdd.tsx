@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { Plus, X, TrendingUp, TrendingDown, CreditCard, PiggyBank } from 'lucide-react'
 import { useData } from '@/lib/store'
-import { Transaction, Installment, Investment, MONTHS } from '@/lib/types'
+import { Transaction, Installment, Investment, MONTHS, MonthKey, periodOfMonthKey } from '@/lib/types'
 import TransactionModal from './TransactionModal'
 
 type Mode = 'receita' | 'fixo' | 'extra' | 'parcela' | 'investimento' | null
@@ -15,6 +15,9 @@ export default function QuickAdd() {
   if (!data) return null
 
   const close = () => { setOpen(false); setMode(null) }
+  // currentMonth é período "YYYY-MM"; o modal ainda escolhe por MonthKey.
+  const anoAtual = currentMonth.slice(0, 4)
+  const monthKeyAtual: MonthKey = MONTHS[parseInt(currentMonth.slice(5, 7), 10) - 1] ?? 'JAN'
 
   const handleTx = (tx: Omit<Transaction, 'id'>) => {
     // Recorrente: o modal promete "deste mês até Dezembro" — então replica de
@@ -22,7 +25,12 @@ export default function QuickAdd() {
     const startIdx = MONTHS.indexOf(tx.month)
     const meses = tx.recurring && startIdx >= 0 ? MONTHS.slice(startIdx) : [tx.month]
     const base = Date.now()
-    const newTxs: Transaction[] = meses.map((m, i) => ({ ...tx, month: m, id: `${base}_${i}_${Math.random().toString(36).slice(2, 6)}` }))
+    const newTxs: Transaction[] = meses.map((m, i) => ({
+      ...tx,
+      month: m,
+      period: periodOfMonthKey(m, anoAtual), // novos lançamentos têm ano de verdade
+      id: `${base}_${i}_${Math.random().toString(36).slice(2, 6)}`,
+    }))
     const delta = tx.category === 'receita' ? tx.value : -tx.value
     setData((prev) => ({
       ...prev,
@@ -95,10 +103,10 @@ export default function QuickAdd() {
       {/* Modais de cada tipo */}
       {(mode === 'receita' || mode === 'fixo' || mode === 'extra') && (
         <TransactionModal
-          month={currentMonth}
+          month={monthKeyAtual}
           onSave={handleTx}
           onClose={close}
-          initial={mode ? { id: '', month: currentMonth, category: mode, description: '', value: 0 } : undefined}
+          initial={mode ? { id: '', month: monthKeyAtual, category: mode, description: '', value: 0 } : undefined}
         />
       )}
 

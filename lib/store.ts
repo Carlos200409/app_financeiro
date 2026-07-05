@@ -1,6 +1,6 @@
 'use client'
 import { createContext, useContext } from 'react'
-import { FinanceData, MonthKey, MONTHS } from './types'
+import { FinanceData } from './types'
 
 export const STORAGE_KEY = 'finance_data_v1'
 
@@ -13,9 +13,10 @@ export function saveData(data: FinanceData) {
   }
 }
 
-export function getCurrentMonth(): MonthKey {
-  const idx = new Date().getMonth()
-  return MONTHS[idx]
+// Período do calendário de hoje: "YYYY-MM".
+export function getCurrentMonth(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 
 export interface DataContextType {
@@ -23,14 +24,14 @@ export interface DataContextType {
   // Aceita updater funcional: setData(prev => ...) lê o estado ATUAL na hora de
   // gravar — assim dois uploads em voo não se sobrescrevem (stale closure).
   setData: (d: FinanceData | ((prev: FinanceData) => FinanceData)) => void
-  currentMonth: MonthKey
-  setCurrentMonth: (m: MonthKey) => void
+  currentMonth: string // período "YYYY-MM" selecionado
+  setCurrentMonth: (m: string) => void
 }
 
 export const DataContext = createContext<DataContextType>({
   data: null,
   setData: () => {},
-  currentMonth: 'JAN',
+  currentMonth: '2026-01',
   setCurrentMonth: () => {},
 })
 

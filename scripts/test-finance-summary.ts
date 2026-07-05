@@ -22,7 +22,7 @@ const tx = (over: Record<string, unknown>) => ({
     ...base,
     holerites: [{ competencia: 'Junho/2026', tipo: 'adiantamento', empregador: '', salarioBase: 5000, bruto: 2000, descontos: 88, liquido: 1912, confianca: 'alta', addedAt: '' }],
     imports: [{ id: 'g1', source: 'Extrato', importedAt: '', transactions: [tx({ amount: 50, category: 'Renda', recurring: false })] }],
-  }, 'JUN')!
+  }, '2026-06')!
   assert.equal(s.renda, 1962, `holerite + freela deviam somar 1962, veio ${s.renda}`)
   assert.equal(s.rendaFixa, 1912)
   assert.equal(s.rendaVariavel, 50)
@@ -34,7 +34,7 @@ const tx = (over: Record<string, unknown>) => ({
     ...base,
     holerites: [{ competencia: 'Junho/2026', tipo: 'completo', empregador: '', salarioBase: 5000, bruto: 5000, descontos: 0, liquido: 5000, confianca: 'alta', addedAt: '' }],
     imports: [{ id: 'g1', source: 'Extrato', importedAt: '', transactions: [tx({ amount: 5000, category: 'Renda', recurring: true })] }],
-  }, 'JUN')!
+  }, '2026-06')!
   assert.equal(s.renda, 5000, `salário não pode contar 2x, veio ${s.renda}`)
 }
 
@@ -46,7 +46,7 @@ const tx = (over: Record<string, unknown>) => ({
       tx({ amount: -100, category: 'Compras' }),
       tx({ amount: 500, category: 'Transferência' }), // pagamento da fatura
     ] }],
-  }, 'JUN')!
+  }, '2026-06')!
   assert.equal(s.renda, 0, `pagamento de fatura não é renda, veio ${s.renda}`)
   assert.equal(s.gastos, 100)
 }
@@ -59,7 +59,7 @@ const tx = (over: Record<string, unknown>) => ({
       tx({ date: '2026-06-10', amount: -30 }),
       tx({ date: '2026-07-10', amount: -70 }),
     ] }],
-  }, 'JUN')!
+  }, '2026-06')!
   assert.equal(s.gastos, 30)
 }
 

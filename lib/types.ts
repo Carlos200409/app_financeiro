@@ -1,9 +1,27 @@
 export type MonthKey = 'JAN' | 'FEV' | 'MAR' | 'ABR' | 'MAI' | 'JUN' | 'JUL' | 'AGO' | 'SET' | 'OUT' | 'NOV' | 'DEZ'
 export type Category = 'receita' | 'fixo' | 'extra'
 
+// Período = "YYYY-MM". É a chave real de mês do app (com ano — Jan/2026 e
+// Jan/2027 não colidem). MonthKey continua só em dados manuais legados.
+// ponytail: lançamentos manuais antigos não têm ano; assumimos 2026 (ano em
+// que foram criados). Novos lançamentos gravam `period` direto.
+export const LEGACY_YEAR = '2026'
+
+export function periodOfMonthKey(month: MonthKey, year: string): string {
+  return `${year}-${String(MONTHS.indexOf(month) + 1).padStart(2, '0')}`
+}
+
+// "2026-06" → "Junho 2026"
+export function periodLabel(period: string): string {
+  const [y, m] = period.split('-')
+  const key = MONTHS[parseInt(m, 10) - 1]
+  return key ? `${MONTH_LABELS[key]} ${y}` : period
+}
+
 export interface Transaction {
   id: string
   month: MonthKey
+  period?: string // "YYYY-MM" — novos lançamentos gravam; legado assume LEGACY_YEAR
   category: Category
   description: string
   value: number

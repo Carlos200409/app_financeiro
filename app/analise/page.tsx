@@ -8,7 +8,7 @@ import { authHeaders } from '@/lib/api'
 import { buildAIContext } from '@/lib/ai-context'
 import { fmt } from '@/lib/format'
 import { useData } from '@/lib/store'
-import { AnalyzedTransaction, Holerite, ImportGroup, MONTHS } from '@/lib/types'
+import { AnalyzedTransaction, Holerite, ImportGroup } from '@/lib/types'
 import ImportsManager from '@/components/ImportsManager'
 
 type Mode = 'extrato' | 'holerite'
@@ -37,13 +37,13 @@ export default function AnalisePage() {
     }
     const group: ImportGroup = { id: `imp_${base}`, source, importedAt: new Date().toISOString(), transactions, verdict: payload.verdict || undefined }
     setData((prev) => ({ ...prev, imports: [...(prev.imports ?? []), group] }))
-    // Pula pro mês dos dados importados — senão o Resumo abre no mês de hoje
-    // (vazio) e parece que o import não funcionou.
-    const meses = transactions
-      .map((t) => t.date.match(/^\d{4}-(\d{2})/)?.[1])
-      .filter((m): m is string => !!m)
+    // Pula pro período dos dados importados — senão o Resumo abre no mês de
+    // hoje (vazio) e parece que o import não funcionou.
+    const periodos = transactions
+      .map((t) => t.date.match(/^\d{4}-\d{2}/)?.[0])
+      .filter((p): p is string => !!p)
       .sort()
-    if (meses.length) setCurrentMonth(MONTHS[parseInt(meses[meses.length - 1], 10) - 1])
+    if (periodos.length) setCurrentMonth(periodos[periodos.length - 1])
     setImported(source)
   }, [setData, setCurrentMonth, data])
 
