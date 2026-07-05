@@ -172,6 +172,7 @@ export async function processMessage(input: IngestInput): Promise<{ ok: boolean;
           (transactions.length > 5 ? `\n… e mais ${transactions.length - 5} itens (vê em Gastos)` : '')
       const rodape = [
         r.parcelasPagas.length ? `✅ Parcela paga: ${r.parcelasPagas.join(' · ')}` : '',
+        r.unificados.length ? `♻️ ${r.unificados.length} registro(s) do WhatsApp unificado(s) com a fatura (sem contar 2x)` : '',
         s ? `———\nGastos do mês: ${fmt(s.gastos)}` : '',
       ].filter(Boolean).join('\n')
       return { ok: true, resumo: `✓ Registrado\n${corpo}${rodape ? `\n${rodape}` : ''}`, status: 200 }

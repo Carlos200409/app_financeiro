@@ -21,8 +21,9 @@ export default function AnalisePage() {
   const [holerite, setHolerite] = useState<Holerite | null>(null)
   const [imported, setImported] = useState<string | null>(null)
   const [parcelasPagas, setParcelasPagas] = useState<string[]>([])
+  const [unificados, setUnificados] = useState<string[]>([])
 
-  const switchMode = (m: Mode) => { setMode(m); setError(null); setHolerite(null); setImported(null); setParcelasPagas([]) }
+  const switchMode = (m: Mode) => { setMode(m); setError(null); setHolerite(null); setImported(null); setParcelasPagas([]); setUnificados([]) }
 
   // Parcelas ativas vão junto na análise — a IA detecta o pagamento delas no
   // extrato (mesmo com desconto de pontualidade) e o app marca como paga.
@@ -40,13 +41,16 @@ export default function AnalisePage() {
     }
     let pagas: string[] = []
     let periodo: string | null = null
+    let unif: string[] = []
     setData((prev) => {
       const r = applyImport(prev, payload)
       pagas = r.parcelasPagas
       periodo = r.periodo
+      unif = r.unificados
       return r.next
     })
     setParcelasPagas(pagas)
+    setUnificados(unif)
     // Pula pro período dos dados importados — senão o Resumo abre no mês de
     // hoje (vazio) e parece que o import não funcionou.
     if (periodo) setCurrentMonth(periodo)
@@ -165,6 +169,9 @@ export default function AnalisePage() {
           <CheckCircle2 className="w-4 h-4 shrink-0" /> &ldquo;{imported}&rdquo; importado e categorizado.
           {parcelasPagas.length > 0 && (
             <span className="w-full text-[#b0f0d0]">✓ Parcela marcada como paga: {parcelasPagas.join(' · ')}</span>
+          )}
+          {unificados.length > 0 && (
+            <span className="w-full text-[#b0f0d0]">♻️ Unificado com registro do WhatsApp (sem contar 2x): {unificados.join(' · ')}</span>
           )}
           <span className="ml-auto flex gap-2">
             <Link href="/gastos" className="inline-flex items-center gap-1 font-medium text-white bg-[#4ade80]/20 hover:bg-[#4ade80]/30 rounded-lg px-3 py-1 transition-colors">

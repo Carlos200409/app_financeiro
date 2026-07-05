@@ -17,10 +17,42 @@ export function dupFraction(prev: FinanceData, transactions: ImportPayload['tran
   return repetidas / transactions.length
 }
 
+// ── Reconciliação WhatsApp ↔ fatura/extrato ──────────────────────────────────
+// Gasto reportado por mensagem ("comprei tênis, 250 no crédito em 3x") depois
+// aparece na fatura oficial — sem isto, contaria 2x. Quando um item importado
+// casa com um registro do WhatsApp, o registro manual sai (a fatura é a fonte
+// oficial). À vista: mesmo valor ±R$0,02 e data ±5 dias. Parcelado: valor da
+// fatura ≈ valor reportado ÷ N ("3x") + uma palavra em comum na descrição.
+
+function diasEntre(a?: string, b?: string): number {
+  const pa = Date.parse(a ?? ''), pb = Date.parse(b ?? '')
+  if (isNaN(pa) || isNaN(pb)) return Infinity
+  return Math.abs(pa - pb) / 86_400_000
+}
+
+function palavraEmComum(a: string, b: string): boolean {
+  const tokens = (s: string) => new Set(s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').split(/[^a-z0-9]+/).filter((w) => w.length >= 4))
+  const ta = tokens(a)
+  return [...tokens(b)].some((w) => ta.has(w))
+}
+
+function casa(wa: AnalyzedTransaction, inc: { date: string; description: string; amount: number }): boolean {
+  if (wa.amount >= 0 || inc.amount >= 0) return false
+  // À vista: mesmo valor, datas próximas.
+  if (Math.abs(wa.amount - inc.amount) <= 0.02 && diasEntre(wa.date, inc.date) <= 5) return true
+  // Parcelado: reportou o TOTAL ("3x"); a fatura traz a parcela (total ÷ N).
+  const n = parseInt(wa.parcelasInfo?.match(/^(\d+)\s*x$/i)?.[1] ?? '', 10)
+  if (n >= 2) {
+    const parcela = Math.abs(wa.amount) / n
+    if (Math.abs(Math.abs(inc.amount) - parcela) <= Math.max(0.05, parcela * 0.02) && palavraEmComum(wa.description, inc.description)) return true
+  }
+  return false
+}
+
 export function applyImport(
   prev: FinanceData,
   payload: ImportPayload,
-): { next: FinanceData; group: ImportGroup; parcelasPagas: string[]; periodo: string | null } {
+): { next: FinanceData; group: ImportGroup; parcelasPagas: string[]; periodo: string | null; unificados: string[] } {
   const base = Date.now()
   const transactions: AnalyzedTransaction[] = payload.transactions.map((t, i) => ({ ...t, id: `tx_${base}_${i}` }))
   const group: ImportGroup = {
@@ -47,10 +79,34 @@ export function applyImport(
     .filter((p): p is string => !!p)
     .sort()
 
+  // Reconciliação: se este import NÃO é do WhatsApp, remove registros do
+  // WhatsApp que casem com itens dele (senão a mesma compra conta 2x).
+  const unificados: string[] = []
+  let imports = [...(prev.imports ?? []), group]
+  if (group.source !== 'WhatsApp') {
+    const usados = new Set<string>()
+    imports = imports.map((g) => {
+      if (g.id === group.id || g.source !== 'WhatsApp') return g
+      return {
+        ...g,
+        transactions: g.transactions.filter((wa) => {
+          const match = transactions.find((inc) => !usados.has(`${inc.id}`) && casa(wa, inc))
+          if (match) {
+            usados.add(`${match.id}`)
+            unificados.push(wa.description)
+            return false
+          }
+          return true
+        }),
+      }
+    }).filter((g) => g.transactions.length > 0) // grupo do WhatsApp esvaziou → sai
+  }
+
   return {
-    next: { ...prev, imports: [...(prev.imports ?? []), group], installments },
+    next: { ...prev, imports, installments },
     group,
     parcelasPagas,
     periodo: periodos.length ? periodos[periodos.length - 1] : null,
+    unificados,
   }
 }
