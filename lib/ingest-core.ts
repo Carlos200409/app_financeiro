@@ -36,6 +36,30 @@ function parseAI(message: Anthropic.Message): Record<string, unknown> {
   return JSON.parse(textBlock && 'text' in textBlock ? textBlock.text : '{}')
 }
 
+const METODO_LABEL: Record<string, string> = {
+  pix: 'Pix', credito: 'Crédito', debito: 'Débito', dinheiro: 'Dinheiro', boleto: 'Boleto',
+}
+
+// "2026-07-05" → "05/07/2026"
+function dataBR(iso?: string): string {
+  const m = (iso ?? '').match(/^(\d{4})-(\d{2})-(\d{2})/)
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : ''
+}
+
+// Padrão de resposta no WhatsApp: item | valor | pagamento | categoria | data.
+function cardItem(t: { description: string; amount: number; category: string; level: string; date?: string; metodo?: string; parcelasInfo?: string }): string {
+  const linhas = [
+    `🛒 ${t.description}`,
+    `💰 ${fmt(t.amount)}`,
+  ]
+  const pag = [t.metodo ? METODO_LABEL[t.metodo] ?? t.metodo : '', t.parcelasInfo].filter(Boolean).join(' · ')
+  if (pag) linhas.push(`💳 ${pag}`)
+  linhas.push(`🏷️ ${t.category} (${t.level})`)
+  const d = dataBR(t.date)
+  if (d) linhas.push(`📅 ${d}`)
+  return linhas.join('\n')
+}
+
 export async function processMessage(input: IngestInput): Promise<{ ok: boolean; resumo: string; status: number }> {
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   const apiKey = process.env.ANTHROPIC_API_KEY
@@ -139,14 +163,18 @@ export async function processMessage(input: IngestInput): Promise<{ ok: boolean;
       const r = applyImport(data, { transactions, verdict: parsed.verdict, source: parsed.source || 'WhatsApp' })
       await save(r.next)
       const s = computeSummary(r.next, r.periodo)
-      const itens = transactions.length === 1
-        ? `${transactions[0].description} ${fmt(transactions[0].amount)}`
-        : `${transactions.length} itens`
-      return {
-        ok: true,
-        resumo: `✓ Registrado (${r.group.source}): ${itens}.${r.parcelasPagas.length ? ` ✓ Parcela paga: ${r.parcelasPagas.join(' · ')}.` : ''}${s ? ` Gastos do mês: ${fmt(s.gastos)}.` : ''}`,
-        status: 200,
-      }
+      // 1 item → cartão completo; vários → total + primeiras linhas.
+      const total = transactions.filter((t) => t.amount < 0).reduce((a, t) => a + Math.abs(t.amount), 0)
+      const corpo = transactions.length === 1
+        ? cardItem(transactions[0])
+        : `📄 ${r.group.source}: ${transactions.length} itens · total ${fmt(total)}\n` +
+          transactions.slice(0, 5).map((t) => `• ${t.description} — ${fmt(t.amount)}${t.metodo ? ` (${METODO_LABEL[t.metodo] ?? t.metodo})` : ''}`).join('\n') +
+          (transactions.length > 5 ? `\n… e mais ${transactions.length - 5} itens (vê em Gastos)` : '')
+      const rodape = [
+        r.parcelasPagas.length ? `✅ Parcela paga: ${r.parcelasPagas.join(' · ')}` : '',
+        s ? `———\nGastos do mês: ${fmt(s.gastos)}` : '',
+      ].filter(Boolean).join('\n')
+      return { ok: true, resumo: `✓ Registrado\n${corpo}${rodape ? `\n${rodape}` : ''}`, status: 200 }
     }
 
     // ── Texto ("gastei 50 no mercado ontem") ─────────────────────────────────
@@ -161,27 +189,27 @@ export async function processMessage(input: IngestInput): Promise<{ ok: boolean;
         content: `${context ? `CONTEXTO DO USUÁRIO:\n${context}\n\n` : ''}DATA ATUAL: ${hoje}\n\nMensagem: ${text}`,
       }],
     })
-    const parsed = parseAI(message) as { entendi?: boolean; date?: string; description?: string; amount?: number; category?: string; level?: string; recurring?: boolean }
+    const parsed = parseAI(message) as { entendi?: boolean; date?: string; description?: string; amount?: number; category?: string; level?: string; recurring?: boolean; metodo?: string; parcelasInfo?: string }
     if (!parsed.entendi || !parsed.description || typeof parsed.amount !== 'number') {
-      return { ok: false, resumo: '🤔 Não entendi como gasto. Tenta tipo: "gastei 50 no mercado" ou "recebi 200 de corrida".', status: 200 }
+      return { ok: false, resumo: '🤔 Não entendi como gasto. Tenta tipo: "gastei 50 no mercado no pix" ou "recebi 200 de corrida".', status: 200 }
     }
-    const r = applyImport(data, {
-      transactions: [{
-        date: parsed.date || hoje,
-        description: parsed.description,
-        amount: parsed.amount,
-        category: parsed.category || 'Outros',
-        level: (parsed.level as 'essencial' | 'util' | 'superfluo') || 'util',
-        reason: 'registrado pelo WhatsApp',
-        recurring: !!parsed.recurring,
-      }],
-      source: 'WhatsApp',
-    })
+    const item = {
+      date: parsed.date || hoje,
+      description: parsed.description,
+      amount: parsed.amount,
+      category: parsed.category || 'Outros',
+      level: (parsed.level as 'essencial' | 'util' | 'superfluo') || 'util',
+      reason: 'registrado pelo WhatsApp',
+      recurring: !!parsed.recurring,
+      metodo: parsed.metodo || undefined,
+      parcelasInfo: parsed.parcelasInfo || undefined,
+    }
+    const r = applyImport(data, { transactions: [item], source: 'WhatsApp' })
     await save(r.next)
     const s = computeSummary(r.next, r.periodo)
     return {
       ok: true,
-      resumo: `✓ Registrado: ${parsed.description} ${fmt(parsed.amount)} (${parsed.category}/${parsed.level}).${s ? ` Gastos do mês: ${fmt(s.gastos)}.` : ''}`,
+      resumo: `✓ Registrado\n${cardItem(item)}${s ? `\n———\nGastos do mês: ${fmt(s.gastos)}` : ''}`,
       status: 200,
     }
   } catch (e) {

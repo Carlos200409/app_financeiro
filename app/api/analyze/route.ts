@@ -37,8 +37,10 @@ const SCHEMA = {
           reason: { type: 'string', description: 'motivo curto (máx ~12 palavras)' },
           recurring: { type: 'boolean', description: 'true se parece cobrança/renda que se repete todo mês (salário, assinatura, aluguel, mensalidade)' },
           parcelaId: { type: 'string', description: 'se esta transação for o pagamento de uma das PARCELAS ATIVAS listadas na mensagem, o id dela; senão string vazia' },
+          metodo: { type: 'string', enum: ['pix', 'credito', 'debito', 'dinheiro', 'boleto', ''], description: 'método quando identificável (fatura de cartão → credito; "PIX" na descrição → pix); senão vazio' },
+          parcelasInfo: { type: 'string', description: 'parcelamento na descrição, ex "3/10" ou "12x"; senão vazio' },
         },
-        required: ['i', 'category', 'level', 'reason', 'recurring', 'parcelaId'],
+        required: ['i', 'category', 'level', 'reason', 'recurring', 'parcelaId', 'metodo', 'parcelasInfo'],
       },
     },
     verdict: {
@@ -145,7 +147,7 @@ export async function POST(request: Request) {
     const parsed = JSON.parse(textBlock && 'text' in textBlock ? textBlock.text : '{}')
 
     // Junta o julgamento do Claude de volta com os dados originais (por índice).
-    const byIndex = new Map<number, { category: string; level: string; reason: string; recurring: boolean; parcelaId?: string }>()
+    const byIndex = new Map<number, { category: string; level: string; reason: string; recurring: boolean; parcelaId?: string; metodo?: string; parcelasInfo?: string }>()
     for (const it of parsed.items ?? []) byIndex.set(it.i, it)
     const validIds = new Set(installments.map((p) => p.id))
 
@@ -161,6 +163,8 @@ export async function POST(request: Request) {
       reason: byIndex.get(i)?.reason ?? '',
       recurring: byIndex.get(i)?.recurring ?? false,
       parcelaId: validIds.has(byIndex.get(i)?.parcelaId ?? '') ? byIndex.get(i)!.parcelaId : undefined,
+      metodo: byIndex.get(i)?.metodo || undefined,
+      parcelasInfo: byIndex.get(i)?.parcelasInfo || undefined,
     }))
 
     return Response.json({ transactions: result, verdict: parsed.verdict ?? '', source: parsed.source || 'Extrato' })

@@ -79,6 +79,8 @@ export interface AnalyzedTransaction {
   reason: string
   recurring: boolean // cobrança/renda mensal recorrente (salário, assinatura, aluguel)
   parcelaId?: string // id da Installment que esta transação pagou (IA detecta)
+  metodo?: string // pix | credito | debito | dinheiro | boleto (quando dá pra saber)
+  parcelasInfo?: string // "3x", "8/9" — parcelamento detectado na descrição/comprovante
 }
 
 // Um extrato/fatura importado = um grupo com itens. Ex: "Cartão Bradesco".

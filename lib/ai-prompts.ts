@@ -26,8 +26,10 @@ export const EXTRATO_FOTO_SCHEMA = {
           reason: { type: 'string', description: 'motivo curto; numa nota fiscal, cite os itens principais aqui' },
           recurring: { type: 'boolean' },
           parcelaId: { type: 'string', description: 'se esta transação for o pagamento de uma das PARCELAS ATIVAS listadas, o id dela; senão string vazia' },
+          metodo: { type: 'string', enum: ['pix', 'credito', 'debito', 'dinheiro', 'boleto', ''], description: 'método de pagamento quando identificável (comprovante Pix → pix; fatura de cartão → credito); senão vazio' },
+          parcelasInfo: { type: 'string', description: 'parcelamento detectado na descrição, ex "3/10" ou "12x"; senão vazio' },
         },
-        required: ['date', 'description', 'amount', 'category', 'level', 'reason', 'recurring', 'parcelaId'],
+        required: ['date', 'description', 'amount', 'category', 'level', 'reason', 'recurring', 'parcelaId', 'metodo', 'parcelasInfo'],
       },
     },
     verdict: { type: 'string', description: 'veredito direto sobre ESTA fatura em 2-3 frases: total, onde pesou mais, o que cortar. Valores em R$.' },
@@ -42,6 +44,7 @@ export const EXTRATO_FOTO_SYSTEM = `Você lê extratos bancários, faturas de ca
 - A imagem pode estar torta/dobrada/escura — leia mesmo assim. Não invente número que não está lá.
 - Categorize cada uma: category (da lista), level (essencial/util/superfluo), recurring (repete todo mês? salário/assinatura/aluguel).
 - Numa NOTA FISCAL de uma compra só: registre a compra (estabelecimento + total) e liste os itens principais no campo "reason".
+- metodo: identifique quando possível — comprovante Pix → "pix"; fatura/compra de cartão de crédito → "credito"; débito → "debito"; boleto → "boleto". parcelasInfo: se a descrição trouxer parcelamento ("Parcela 3/10", "em 12x"), registre ("3/10", "12x").
 - Entradas positivas = category "Renda", level "essencial".
 - "Transferência" é SÓ dinheiro trocando de bolso da própria pessoa (pagamento de fatura de cartão, transferência entre contas próprias, aporte pra corretora) — neutra no cálculo. Pix/TED pagando alguém ou comprando algo é GASTO REAL: use a categoria da compra, nunca "Transferência".
 - PARCELAS ATIVAS: se a mensagem listar parcelas (financiamentos) e uma transação parecer o pagamento de uma delas (boleto/financeira, valor próximo — pode vir MENOR por desconto de pontualidade, tolere ~20%), retorne o parcelaId dela. É gasto normal (ex: Transporte pra carro); o id só marca a parcela como paga.
@@ -99,14 +102,18 @@ export const TEXTO_GASTO_SCHEMA = {
     category: { type: 'string', enum: CATEGORIES as unknown as string[] },
     level: { type: 'string', enum: LEVELS as unknown as string[] },
     recurring: { type: 'boolean' },
+    metodo: { type: 'string', enum: ['pix', 'credito', 'debito', 'dinheiro', 'boleto', ''], description: 'se a mensagem disser como pagou ("no pix", "no crédito"); senão vazio' },
+    parcelasInfo: { type: 'string', description: 'se a mensagem disser parcelamento ("em 3x"); senão vazio' },
   },
-  required: ['entendi', 'date', 'description', 'amount', 'category', 'level', 'recurring'],
+  required: ['entendi', 'date', 'description', 'amount', 'category', 'level', 'recurring', 'metodo', 'parcelasInfo'],
 }
 
 export const TEXTO_GASTO_SYSTEM = `Você registra um lançamento financeiro a partir de uma mensagem informal em
 português (ex: "gastei 50 no mercado ontem", "recebi 200 de uma corrida").
 
 - amount NEGATIVO pra gasto, POSITIVO pra entrada. "gastei 50" → -50.
+- description: "Item — Local" quando houver os dois (ex "comprei tênis na Centauro" → "Tênis — Centauro"); senão só o que houver.
+- metodo/parcelasInfo: preencha se a mensagem disser ("no pix", "no crédito em 3x").
 - Resolva datas relativas ("hoje", "ontem", "sexta") pela DATA ATUAL informada na mensagem.
 - Se não houver data, use a data atual.
 - Se a mensagem NÃO descrever gasto/entrada (é pergunta, conversa), retorne entendi=false.
