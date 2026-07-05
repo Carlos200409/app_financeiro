@@ -13,9 +13,11 @@ function groupTotal(g: ImportGroup): number {
 
 // Lista de extratos/faturas importados. Cada grupo abre pra ver e EDITAR os itens
 // (nome, valor, categoria, nível), apagar item ou o grupo inteiro.
-export default function ImportsManager() {
+// Com `period`, mostra só os grupos que têm movimento naquele mês (YYYY-MM).
+export default function ImportsManager({ period }: { period?: string } = {}) {
   const { data, setData } = useData()
-  const imports = data?.imports ?? []
+  const todos = data?.imports ?? []
+  const imports = period ? todos.filter((g) => g.transactions.some((t) => t.date.startsWith(period))) : todos
   const [open, setOpen] = useState<Set<string>>(new Set())
   // Flash verde de "salvou" na linha editada — feedback sem modal.
   const [flash, setFlash] = useState<string | null>(null)

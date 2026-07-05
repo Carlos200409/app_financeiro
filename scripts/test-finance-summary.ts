@@ -28,6 +28,19 @@ const tx = (over: Record<string, unknown>) => ({
   assert.equal(s.rendaVariavel, 50)
 }
 
+// 1b. Adiantamento + fechamento da MESMA competência somam (salário total do mês)
+{
+  const s = computeSummary({
+    ...base,
+    holerites: [
+      { competencia: 'Junho/2026', tipo: 'adiantamento', empregador: '', salarioBase: 5000, bruto: 2000, descontos: 88, liquido: 1912, confianca: 'alta', addedAt: '' },
+      { competencia: 'Junho/2026', tipo: 'fechamento', empregador: '', salarioBase: 5000, bruto: 5000, descontos: 2900, liquido: 2100, confianca: 'alta', addedAt: '' },
+    ],
+  }, '2026-06')!
+  assert.equal(s.renda, 4012, `adiantamento+fechamento deviam somar 4012, veio ${s.renda}`)
+  assert.equal(s.rendaFixa, 4012)
+}
+
 // 2. Holerite é pulado quando JÁ existe salário (renda recorrente) no mês
 {
   const s = computeSummary({

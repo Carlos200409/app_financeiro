@@ -38,6 +38,11 @@ Regras:
   - "bruto" = total de vencimentos DESTE recibo (não o salário base).
   - "liquido" = o valor que a pessoa efetivamente recebeu neste recibo.
   - "salarioBase" = o salário cheio, se estiver escrito (mesmo que este recibo seja só um adiantamento).
+- FECHAMENTO com desconto de adiantamento: no holerite de fechamento, o
+  "adiantamento salarial" aparece como DESCONTO — isso NÃO é imposto nem gasto,
+  é só a parte do salário que a pessoa JÁ recebeu antes. O "liquido" deste
+  recibo é o que ela recebe AGORA (o app soma adiantamento + fechamento da
+  mesma competência pra chegar no salário total do mês). Tipo = "fechamento".
 - Se NÃO for um holerite (extrato, nota fiscal, foto qualquer), retorne ehHolerite=false e zere os números.
 - Números em reais, use ponto decimal (2000.00, não "2.000,00").`
 

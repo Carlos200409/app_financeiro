@@ -9,7 +9,6 @@ import { buildAIContext } from '@/lib/ai-context'
 import { fmt } from '@/lib/format'
 import { useData } from '@/lib/store'
 import { AnalyzedTransaction, Holerite, ImportGroup } from '@/lib/types'
-import ImportsManager from '@/components/ImportsManager'
 
 type Mode = 'extrato' | 'holerite'
 
@@ -156,16 +155,19 @@ export default function AnalisePage() {
 
       {imported && !loading && (
         <div className="flex items-center gap-2 flex-wrap bg-[#4ade80]/10 border border-[#4ade80]/30 rounded-xl p-3 mt-4 text-sm text-[#4ade80]">
-          <CheckCircle2 className="w-4 h-4 shrink-0" /> &ldquo;{imported}&rdquo; importado e categorizado. Confira e edite abaixo.
-          <Link href="/resumo" className="ml-auto inline-flex items-center gap-1 font-medium text-white bg-[#4ade80]/20 hover:bg-[#4ade80]/30 rounded-lg px-3 py-1 transition-colors">
-            Ver meu resumo <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
+          <CheckCircle2 className="w-4 h-4 shrink-0" /> &ldquo;{imported}&rdquo; importado e categorizado.
+          <span className="ml-auto flex gap-2">
+            <Link href="/gastos" className="inline-flex items-center gap-1 font-medium text-white bg-[#4ade80]/20 hover:bg-[#4ade80]/30 rounded-lg px-3 py-1 transition-colors">
+              Ver e editar em Gastos <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+            <Link href="/resumo" className="inline-flex items-center gap-1 font-medium text-[#4ade80] hover:text-white rounded-lg px-2 py-1 transition-colors">
+              Resumo
+            </Link>
+          </span>
         </div>
       )}
 
       {holerite && <HoleriteResult h={holerite} onReset={() => setHolerite(null)} />}
-
-      {mode === 'extrato' && <ImportsManager />}
 
       {/* Contexto pessoal pra IA julgar como VOCÊ (essencial vs besteira) */}
       <div className="mt-8 bg-[#141424] border border-[#1a1a2e] rounded-2xl p-5">

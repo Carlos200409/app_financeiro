@@ -2,6 +2,7 @@
 import { useMemo } from 'react'
 import { CreditCard, Repeat } from 'lucide-react'
 import EmptyCTA from '@/components/EmptyCTA'
+import ImportsManager from '@/components/ImportsManager'
 import MonthSelector from '@/components/MonthSelector'
 import { useData } from '@/lib/store'
 import { fmt } from '@/lib/format'
@@ -95,6 +96,9 @@ export default function GastosPage() {
           )}
           </>
           )}
+
+          {/* Extratos e faturas do mês (edita item a item aqui) */}
+          <ImportsManager period={currentMonth} />
 
           {/* Parcelas ativas */}
           {parcelas.length > 0 && (
