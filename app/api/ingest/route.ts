@@ -1,4 +1,5 @@
 import { processMessage } from '@/lib/ingest-core'
+import { userIdForPhone } from '@/lib/account'
 
 // Porta genérica de registro por mensagem (n8n, curl, automações): mesma
 // lógica do webhook do WhatsApp, mas com auth por secret de máquina.
@@ -22,12 +23,17 @@ export async function POST(request: Request) {
     return Response.json({ error: "kind deve ser 'texto' ou 'imagem'." }, { status: 400 })
   }
 
+  // Conta-alvo: userId explícito, ou telefone vinculado (phone_links).
+  let userId = typeof body.userId === 'string' ? body.userId : ''
+  if (!userId && typeof body.phone === 'string') userId = (await userIdForPhone(body.phone)) ?? ''
+  if (!userId) return Response.json({ error: 'Informe userId ou um phone vinculado.' }, { status: 400 })
+
   const r = await processMessage({
     kind: body.kind,
     text: typeof body.text === 'string' ? body.text : '',
     mediaBase64: typeof body.mediaBase64 === 'string' ? body.mediaBase64 : '',
     mediaType: typeof body.mediaType === 'string' ? body.mediaType : 'image/jpeg',
     hint: typeof body.hint === 'string' ? body.hint : '',
-  })
+  }, userId)
   return Response.json({ ok: r.ok, resumo: r.resumo }, { status: r.status })
 }

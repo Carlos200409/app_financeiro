@@ -2,12 +2,16 @@
 import { createContext, useContext } from 'react'
 import { FinanceData } from './types'
 
-export const STORAGE_KEY = 'finance_data_v1'
+// Cache local por usuário — namespaced pelo uid pra NÃO vazar dados entre
+// contas num navegador compartilhado.
+export function storageKey(uid: string): string {
+  return `finance_data_v1:${uid}`
+}
 
-export function saveData(data: FinanceData) {
-  if (typeof window === 'undefined') return
+export function saveData(data: FinanceData, uid: string) {
+  if (typeof window === 'undefined' || !uid) return
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
+    localStorage.setItem(storageKey(uid), JSON.stringify(data))
   } catch {
     // storage full
   }

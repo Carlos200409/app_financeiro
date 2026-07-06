@@ -11,7 +11,7 @@ import {
 } from './ai-prompts'
 import { fmt } from './format'
 import { FinanceData, Holerite } from './types'
-import { TABLE, ROW_ID } from './supabase'
+import { TABLE } from './supabase'
 
 // Núcleo do registro por mensagem (WhatsApp): recebe foto de comprovante/
 // extrato/holerite ou texto ("gastei 50 no mercado"), a IA processa e salva
@@ -72,12 +72,13 @@ function cardItem(t: { description: string; amount: number; category: string; le
   return linhas.join('\n')
 }
 
-export async function processMessage(input: IngestInput): Promise<{ ok: boolean; resumo: string; status: number }> {
+export async function processMessage(input: IngestInput, userId: string): Promise<{ ok: boolean; resumo: string; status: number }> {
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!serviceKey || !apiKey) {
     return { ok: false, resumo: '❌ Servidor sem SUPABASE_SERVICE_ROLE_KEY/ANTHROPIC_API_KEY.', status: 500 }
   }
+  if (!userId) return { ok: false, resumo: '❌ Conta não identificada.', status: 400 }
 
   const text = (input.text ?? '').slice(0, 2000)
   const hint = (input.hint ?? '').slice(0, 500)
@@ -86,8 +87,9 @@ export async function processMessage(input: IngestInput): Promise<{ ok: boolean;
   if (input.kind === 'texto' && !text) return { ok: false, resumo: 'text vazio.', status: 400 }
 
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceKey)
-  const { data: row, error: loadErr } = await supabase.from(TABLE).select('data').eq('id', ROW_ID).single()
-  if (loadErr || !row) return { ok: false, resumo: '❌ Não consegui carregar os dados.', status: 500 }
+  const { data: row, error: loadErr } = await supabase.from(TABLE).select('data').eq('user_id', userId).maybeSingle()
+  if (loadErr) return { ok: false, resumo: '❌ Não consegui carregar os dados.', status: 500 }
+  if (!row) return { ok: false, resumo: '👋 Abre o app primeiro pra criar sua conta, aí eu registro pelo WhatsApp.', status: 200 }
   const data = row.data as FinanceData
 
   // Dedupe: a Meta re-envia o webhook se a resposta demorar — não registrar 2x.
@@ -108,7 +110,7 @@ export async function processMessage(input: IngestInput): Promise<{ ok: boolean;
     const { error } = await supabase
       .from(TABLE)
       .update({ data: withDedupe, updated_at: new Date().toISOString() })
-      .eq('id', ROW_ID)
+      .eq('user_id', userId)
     if (error) throw new Error('Falha ao salvar no Supabase.')
   }
 

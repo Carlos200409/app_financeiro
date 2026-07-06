@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { DataContext, saveData, getCurrentMonth } from '@/lib/store'
 import { FinanceData, MONTHS } from '@/lib/types'
-import { supabase, TABLE, ROW_ID } from '@/lib/supabase'
+import { supabase, TABLE } from '@/lib/supabase'
 import { periodsWithData } from '@/lib/finance-summary'
 import Login from './Login'
 
@@ -15,13 +15,13 @@ const emptyData: FinanceData = {
   importedAt: new Date().toISOString(),
 }
 
-async function loadFromSupabase(): Promise<FinanceData | null> {
+async function loadFromSupabase(uid: string): Promise<FinanceData | null> {
   try {
     const { data, error } = await supabase
       .from(TABLE)
       .select('data')
-      .eq('id', ROW_ID)
-      .single()
+      .eq('user_id', uid)
+      .maybeSingle()
     if (error || !data) return null
     return data.data as FinanceData
   } catch {
@@ -29,11 +29,11 @@ async function loadFromSupabase(): Promise<FinanceData | null> {
   }
 }
 
-async function saveToSupabase(financeData: FinanceData): Promise<void> {
+async function saveToSupabase(uid: string, financeData: FinanceData): Promise<void> {
   try {
     await supabase
       .from(TABLE)
-      .upsert({ id: ROW_ID, data: financeData, updated_at: new Date().toISOString() })
+      .upsert({ user_id: uid, data: financeData, updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
   } catch {
     // silently fail — dados já salvos no localStorage
   }
@@ -63,14 +63,15 @@ export default function DataProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!session) return
+    const uid = session.user.id
     setReady(false)
-    // Carrega dados do Supabase (ou usa os dados iniciais)
-    loadFromSupabase().then(remoteData => {
+    // Carrega SÓ a linha deste usuário (ou cria a dele, vazia).
+    loadFromSupabase(uid).then(remoteData => {
       const finalData = remoteData ?? emptyData
       dataRef.current = finalData
       setDataState(finalData)
-      saveData(finalData)
-      if (!remoteData) saveToSupabase(emptyData)
+      saveData(finalData, uid)
+      if (!remoteData) saveToSupabase(uid, emptyData)
       // Abre no último período que tem dados (não no mês atual vazio).
       if (!monthInit.current) {
         const periodos = periodsWithData(finalData)
@@ -80,18 +81,18 @@ export default function DataProvider({ children }: { children: ReactNode }) {
       setReady(true)
     })
 
-    // Escuta mudanças de outros devices em tempo real
+    // Escuta mudanças de outros devices em tempo real — SÓ da linha deste usuário.
     const channel = supabase
-      .channel('finance_sync')
+      .channel(`finance_sync:${uid}`)
       .on(
         'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: TABLE },
+        { event: 'UPDATE', schema: 'public', table: TABLE, filter: `user_id=eq.${uid}` },
         (payload) => {
           if (!isSaving.current) {
             const updated = (payload.new as { data: FinanceData }).data
             dataRef.current = updated
             setDataState(updated)
-            saveData(updated)
+            saveData(updated, uid)
           }
         }
       )
@@ -101,6 +102,8 @@ export default function DataProvider({ children }: { children: ReactNode }) {
   }, [session])
 
   const setData = (d: FinanceData | ((prev: FinanceData) => FinanceData)) => {
+    const uid = session?.user.id
+    if (!uid) return
     // Updater funcional lê dataRef (estado ATUAL), não um closure velho — dois
     // uploads em voo somam em vez de um sobrescrever o outro.
     const next = typeof d === 'function' ? (dataRef.current ? d(dataRef.current) : null) : d
@@ -108,8 +111,8 @@ export default function DataProvider({ children }: { children: ReactNode }) {
     isSaving.current = true
     dataRef.current = next
     setDataState(next)
-    saveData(next)
-    saveToSupabase(next).finally(() => {
+    saveData(next, uid)
+    saveToSupabase(uid, next).finally(() => {
       setTimeout(() => { isSaving.current = false }, 500)
     })
   }

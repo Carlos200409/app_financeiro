@@ -6,4 +6,3 @@ export const supabase = createClient(
 )
 
 export const TABLE = 'finance_data'
-export const ROW_ID = 1

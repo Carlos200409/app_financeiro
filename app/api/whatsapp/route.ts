@@ -1,4 +1,5 @@
 import { processMessage } from '@/lib/ingest-core'
+import { userIdForPhone, tryLinkByCode } from '@/lib/account'
 
 // Webhook oficial da Meta (WhatsApp Cloud API, número de teste — sem CNPJ).
 // Você manda foto/texto do SEU WhatsApp pro número de teste → a Meta chama
@@ -51,11 +52,10 @@ async function reply(phoneNumberId: string, to: string, body: string, token: str
 
 export async function POST(request: Request) {
   const token = process.env.WHATSAPP_TOKEN
-  const allowed = (process.env.WHATSAPP_ALLOWED_NUMBER ?? '').replace(/\D/g, '')
   // Sempre 200 pra Meta não desativar o webhook; erros vão pro log.
   const ok = () => Response.json({ status: 'ok' })
-  if (!token || !allowed) {
-    console.error('whatsapp: faltam WHATSAPP_TOKEN/WHATSAPP_ALLOWED_NUMBER')
+  if (!token) {
+    console.error('whatsapp: falta WHATSAPP_TOKEN')
     return ok()
   }
 
@@ -81,24 +81,21 @@ export async function POST(request: Request) {
   const phoneNumberId = value?.metadata?.phone_number_id
   if (!msg || !phoneNumberId) return ok() // status de entrega etc — ignora
 
-  // Allowlist: SÓ o dono registra gastos. A Meta manda número BR ora com ora
-  // sem o 9 extra (5547 9xxxx-xxxx vs 5547 xxxx-xxxx) — normaliza os dois lados:
-  // remove DDI 55 e o 9 de celular, compara DDD + linha de 8 dígitos.
-  const normBR = (n: string) => {
-    let d = n.replace(/\D/g, '')
-    if (d.startsWith('55')) d = d.slice(2)
-    if (d.length === 11 && d[2] === '9') d = d.slice(0, 2) + d.slice(3)
-    return d
-  }
-  const from = (msg.from ?? '').replace(/\D/g, '')
-  if (!from || normBR(from) !== normBR(allowed)) {
-    console.warn('whatsapp: mensagem de número não autorizado', from)
+  // De qual usuário é esse número? (phone_links). Não vinculado → tenta vincular
+  // por código enviado do próprio número; senão ignora (não registra pra estranho).
+  const userId = await userIdForPhone(msg.from ?? '')
+  if (!userId) {
+    if (msg.type === 'text' && msg.text?.body && (await tryLinkByCode(msg.from ?? '', msg.text.body))) {
+      await reply(phoneNumberId, msg.from!, '✅ WhatsApp conectado! Agora é só me mandar seus gastos por aqui.', token)
+      return ok()
+    }
+    console.warn('whatsapp: número não vinculado', msg.from)
     return ok()
   }
 
   let resumo = ''
   if (msg.type === 'text' && msg.text?.body) {
-    const r = await processMessage({ kind: 'texto', text: msg.text.body, dedupeId: msg.id })
+    const r = await processMessage({ kind: 'texto', text: msg.text.body, dedupeId: msg.id }, userId)
     resumo = r.resumo
   } else if (msg.type === 'image' && msg.image?.id) {
     const media = await downloadMedia(msg.image.id, token)
@@ -111,14 +108,14 @@ export async function POST(request: Request) {
         mediaType: media.mediaType,
         hint: msg.image.caption ?? '',
         dedupeId: msg.id,
-      })
+      }, userId)
       resumo = r.resumo
     }
   } else if (msg.type === 'document' && msg.document?.id && /image\//.test(msg.document.mime_type ?? '')) {
     // Imagem enviada "como documento" (sem compressão) também funciona.
     const media = await downloadMedia(msg.document.id, token)
     resumo = media
-      ? (await processMessage({ kind: 'imagem', mediaBase64: media.base64, mediaType: media.mediaType, hint: msg.document.caption ?? '', dedupeId: msg.id })).resumo
+      ? (await processMessage({ kind: 'imagem', mediaBase64: media.base64, mediaType: media.mediaType, hint: msg.document.caption ?? '', dedupeId: msg.id }, userId)).resumo
       : '❌ Não consegui baixar o arquivo.'
   } else {
     resumo = '🤖 Manda uma FOTO do comprovante/extrato (legenda "holerite" se for holerite) ou um texto tipo "gastei 50 no mercado".'
