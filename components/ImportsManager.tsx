@@ -11,6 +11,12 @@ function groupTotal(g: ImportGroup): number {
   return g.transactions.filter((t) => t.amount < 0).reduce((a, t) => a + Math.abs(t.amount), 0)
 }
 
+// "2026-07-05" → "05/07" (o "quando" de cada item).
+function dataCurta(iso: string): string {
+  const m = (iso ?? '').match(/^(\d{4})-(\d{2})-(\d{2})/)
+  return m ? `${m[3]}/${m[2]}` : ''
+}
+
 // Lista de extratos/faturas importados. Cada grupo abre pra ver e EDITAR os itens
 // (nome, valor, categoria, nível), apagar item ou o grupo inteiro.
 // Com `period`, mostra só os grupos que têm movimento naquele mês (YYYY-MM).
@@ -101,6 +107,7 @@ export default function ImportsManager({ period }: { period?: string } = {}) {
                       key={t.id}
                       className={`px-4 py-2.5 flex items-center gap-2 flex-wrap sm:flex-nowrap transition-colors duration-500 ${flash === t.id ? 'bg-[#4ade80]/10' : ''}`}
                     >
+                      <span className="text-[10px] text-[#505070] shrink-0 tabular-nums w-9" title={t.date}>{dataCurta(t.date)}</span>
                       <input
                         defaultValue={t.description}
                         onBlur={(e) => { const v = e.target.value; if (v !== t.description) editItem(g.id, t.id, { description: v }) }}

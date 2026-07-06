@@ -63,4 +63,22 @@ const comWhatsApp: FinanceData = {
   assert.equal(r.unificados.length, 0)
 }
 
+// 4. WhatsApp consolida num único grupo POR MÊS (não 1 grupo por mensagem).
+{
+  let d: FinanceData = base
+  d = applyImport(d, { source: 'WhatsApp', transactions: [item({ description: 'Mercado', amount: -50, date: '2026-07-03' })] }).next
+  d = applyImport(d, { source: 'WhatsApp', transactions: [item({ description: 'Uber', amount: -20, date: '2026-07-08' })] }).next
+  const grupos = (d.imports ?? []).filter((g) => g.source === 'WhatsApp')
+  assert.equal(grupos.length, 1, `2 msgs no mesmo mês deviam virar 1 grupo, veio ${grupos.length}`)
+  assert.equal(grupos[0].transactions.length, 2, 'o grupo do mês deve ter os 2 itens')
+}
+
+// 5. Meses diferentes = grupos separados.
+{
+  let d: FinanceData = base
+  d = applyImport(d, { source: 'WhatsApp', transactions: [item({ description: 'Jun', amount: -10, date: '2026-06-05' })] }).next
+  d = applyImport(d, { source: 'WhatsApp', transactions: [item({ description: 'Jul', amount: -10, date: '2026-07-05' })] }).next
+  assert.equal((d.imports ?? []).filter((g) => g.source === 'WhatsApp').length, 2, 'meses diferentes = 2 grupos')
+}
+
 console.log('OK — todos os asserts da reconciliação passaram')

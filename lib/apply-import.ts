@@ -55,14 +55,6 @@ export function applyImport(
 ): { next: FinanceData; group: ImportGroup; parcelasPagas: string[]; periodo: string | null; unificados: string[] } {
   const base = Date.now()
   const transactions: AnalyzedTransaction[] = payload.transactions.map((t, i) => ({ ...t, id: `tx_${base}_${i}` }))
-  const group: ImportGroup = {
-    id: `imp_${base}`,
-    source: payload.source || 'Extrato',
-    importedAt: new Date().toISOString(),
-    transactions,
-    verdict: payload.verdict || undefined,
-  }
-
   // Parcelas que a IA detectou como pagas neste extrato → avança o contador.
   const pagas = [...new Set(transactions.map((t) => t.parcelaId).filter((p): p is string => !!p))]
   const parcelasPagas: string[] = []
@@ -78,14 +70,38 @@ export function applyImport(
     .map((t) => t.date.match(/^\d{4}-\d{2}/)?.[0])
     .filter((p): p is string => !!p)
     .sort()
+  const periodo = periodos.length ? periodos[periodos.length - 1] : null
 
-  // Reconciliação: se este import NÃO é do WhatsApp, remove registros do
-  // WhatsApp que casem com itens dele (senão a mesma compra conta 2x).
+  // WhatsApp: consolida num ÚNICO grupo por MÊS (não um grupo por mensagem) —
+  // vira um "feed" do que você registrou no mês. Outras fontes = grupo novo.
   const unificados: string[] = []
-  let imports = [...(prev.imports ?? []), group]
-  if (group.source !== 'WhatsApp') {
+  let group: ImportGroup
+  let imports: ImportGroup[]
+  if ((payload.source || 'Extrato') === 'WhatsApp') {
+    const doMes = (g: ImportGroup) =>
+      g.source === 'WhatsApp' && g.transactions.some((t) => (t.date.match(/^\d{4}-\d{2}/)?.[0] ?? null) === periodo)
+    const existentes = (prev.imports ?? []).filter(doMes)
+    if (existentes.length) {
+      // Junta TODOS os grupos WhatsApp do mês (+ os novos) num só — também
+      // limpa grupos antigos duplicados que já estavam salvos.
+      group = { ...existentes[0], transactions: [...existentes.flatMap((g) => g.transactions), ...transactions] }
+      imports = [...(prev.imports ?? []).filter((g) => !doMes(g)), group]
+    } else {
+      group = { id: `imp_${base}`, source: 'WhatsApp', importedAt: new Date().toISOString(), transactions }
+      imports = [...(prev.imports ?? []), group]
+    }
+  } else {
+    group = {
+      id: `imp_${base}`,
+      source: payload.source || 'Extrato',
+      importedAt: new Date().toISOString(),
+      transactions,
+      verdict: payload.verdict || undefined,
+    }
+    // Reconciliação: import oficial remove registros do WhatsApp que casem com
+    // seus itens (senão a mesma compra conta 2x).
     const usados = new Set<string>()
-    imports = imports.map((g) => {
+    imports = [...(prev.imports ?? []), group].map((g) => {
       if (g.id === group.id || g.source !== 'WhatsApp') return g
       return {
         ...g,
@@ -106,7 +122,7 @@ export function applyImport(
     next: { ...prev, imports, installments },
     group,
     parcelasPagas,
-    periodo: periodos.length ? periodos[periodos.length - 1] : null,
+    periodo,
     unificados,
   }
 }
